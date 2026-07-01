@@ -1,0 +1,6 @@
+requests
+sqlalchemy
+qrcode
+Pillow
+arabic-reshaper
+python-bidi
