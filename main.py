@@ -5,7 +5,9 @@ import os
 from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
-                      start_vendor_panel, process_vendor_step, list_vendor_products, delete_vendor_product,
+                      start_vendor_panel, process_vendor_step, list_vendor_products, 
+                      delete_vendor_product, show_edit_product_menu, start_edit_price, 
+                      start_edit_stock, accept_order,
                       show_admin_panel, list_shops, list_shops_for_delete, delete_shop, 
                       process_admin_step, reset_state_to_main, bot)
 from config import BOT_TOKEN
@@ -77,8 +79,10 @@ def main():
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
-                if text == '/start':
-                    start_bot(chat_id)
+                if text.startswith('/start'):
+                    parts = text.split()
+                    deep_link = parts[1] if len(parts) > 1 else None
+                    start_bot(chat_id, deep_link)
                 elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
                     reset_state_to_main(chat_id)
                     
@@ -105,9 +109,24 @@ def main():
                 elif text.startswith('dels_'):
                     shop_id = int(text.replace('dels_', ''))
                     delete_shop(chat_id, shop_id)
-                elif text.startswith('delvp_'): # بخش جدید برای حذف محصول خود مغازه‌دار
+                elif text.startswith('delvp_'):
                     prod_id = int(text.replace('delvp_', ''))
                     delete_vendor_product(chat_id, prod_id)
+                
+                # مسیرهای جدید برای ویرایش و تایید سفارش
+                elif text.startswith('editvp_'):
+                    prod_id = int(text.replace('editvp_', ''))
+                    show_edit_product_menu(chat_id, prod_id)
+                elif text.startswith('editp_'):
+                    prod_id = int(text.replace('editp_', ''))
+                    start_edit_price(chat_id, prod_id)
+                elif text.startswith('edits_'):
+                    prod_id = int(text.replace('edits_', ''))
+                    start_edit_stock(chat_id, prod_id)
+                elif text.startswith('accept_'):
+                    order_id = int(text.replace('accept_', ''))
+                    accept_order(chat_id, order_id)
+                    
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
