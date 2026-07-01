@@ -5,7 +5,7 @@ import os
 from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
-                      start_vendor_panel, process_vendor_step, 
+                      start_vendor_panel, process_vendor_step, list_vendor_products, delete_vendor_product,
                       show_admin_panel, list_shops, list_shops_for_delete, delete_shop, 
                       process_admin_step, reset_state_to_main, bot)
 from config import BOT_TOKEN
@@ -97,7 +97,7 @@ def main():
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
-                elif text.startswith('catshop_'):  # بخش جدید برای نمایش دسته‌بندی‌ها
+                elif text.startswith('catshop_'):
                     parts = text.split('_', 2)
                     shop_id = int(parts[1])
                     category = parts[2]
@@ -105,6 +105,9 @@ def main():
                 elif text.startswith('dels_'):
                     shop_id = int(text.replace('dels_', ''))
                     delete_shop(chat_id, shop_id)
+                elif text.startswith('delvp_'): # بخش جدید برای حذف محصول خود مغازه‌دار
+                    prod_id = int(text.replace('delvp_', ''))
+                    delete_vendor_product(chat_id, prod_id)
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     

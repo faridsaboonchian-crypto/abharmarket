@@ -18,7 +18,7 @@ def convert_to_english_digits(text):
     return text
 
 def is_button(text):
-    buttons = ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
+    buttons = ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
     return text in buttons
 
 def format_price(price):
@@ -28,7 +28,8 @@ def main_keyboard():
     return {"keyboard": [["🛒 مشاهده محصولات"], ["🛍 سبد خرید", "👤 پشتیبانی"]], "resize_keyboard": True}
 
 def vendor_keyboard():
-    return {"keyboard": [["➕ افزودن محصول جدید"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
+    # اضافه شدن دکمه مدیریت محصولات
+    return {"keyboard": [["➕ افزودن محصول جدید", "📦 مدیریت محصولات"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
 
 def admin_keyboard():
     return {"keyboard": [["➕ ثبت فروشگاه جدید", "🗑 حذف فروشگاه"], ["📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], ["🔙 بازگشت"]], "resize_keyboard": True}
@@ -172,18 +173,13 @@ def show_shop_products(chat_id, shop_id):
         if not products:
             bot.send_message(chat_id, f"فروشگاه '{shop.name}' هنوز محصولی ثبت نکرده است.")
             return
-        
-        # استخراج دسته‌بندی‌های یکتا
         categories = []
         for p in products:
             cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
             if cat not in categories: categories.append(cat)
-            
         buttons = []
         for cat in categories:
-            # فرمت کال‌بک: catshop_آیدی_مغازه_نام_دسته
             buttons.append([{"text": f"🏷 {cat}", "callback_data": f"catshop_{shop_id}_{cat}"}])
-        
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:", keyboard)
 
@@ -200,7 +196,6 @@ def show_category_products(chat_id, shop_id, category):
         if not products:
             bot.send_message(chat_id, "محصولی در این دسته یافت نشد.")
             return
-            
         bot.send_message(chat_id, f"🛍️ دسته‌بندی: {category}")
         for p in products:
             text = f"📦 {p.name}\n💰 قیمت: {format_price(p.price)} تومان\nموجودی: {p.stock} عدد"
@@ -228,7 +223,6 @@ def show_cart(chat_id, user_id):
         if not cart_items:
             bot.send_message(chat_id, "🛍 سبد خرید شما خالی است.")
             return
-        
         msg = "🛍 **فاکتور خرید شما:**\n\n"
         total_price = 0
         for item in cart_items:
@@ -271,7 +265,6 @@ def process_checkout_step(chat_id, user_id, text):
             data_str = state.temp_data + f"|address:{text}"
             data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
             cart_items = session.query(Cart).filter_by(customer_eitaa_id=str(user_id)).all()
-            
             if not cart_items:
                 bot.send_message(chat_id, "سبد خرید شما خالی است!", main_keyboard())
                 state.state = 'main'
@@ -280,17 +273,14 @@ def process_checkout_step(chat_id, user_id, text):
 
             total_price = 0
             items_text_customer = ""
-            
-            # دیکشنری برای دسته‌بندی سفارشات بر اساس فروشگاه
-            shop_orders = {} 
-            
+            shop_orders = {}
+
             for item in cart_items:
                 p = session.query(Product).get(item.product_id)
                 item_total = p.price * item.quantity
                 total_price += item_total
                 items_text_customer += f"▫️ {p.name} ({item.quantity} عدد) - {format_price(item_total)} تومان\n"
-                
-                # جمع‌آوری اطلاعات برای هر فروشگاه
+
                 if p.shop_id not in shop_orders:
                     shop = session.query(Shop).get(p.shop_id)
                     shop_orders[p.shop_id] = {
@@ -299,43 +289,38 @@ def process_checkout_step(chat_id, user_id, text):
                         "owner_id": shop.owner_chat_id,
                         "shop_name": shop.name
                     }
-                
                 shop_orders[p.shop_id]["items_text"] += f"▫️ {p.name} ({item.quantity} عدد) - {format_price(item_total)} تومان\n"
                 shop_orders[p.shop_id]["total"] += item_total
 
             new_order = Order(customer_id=str(user_id), phone=data_dict.get("phone"), address=data_dict.get("address"), total_price=total_price)
             session.add(new_order)
             session.flush()
-            
+
             for item in cart_items:
                 session.delete(item)
-                
+
             state.state = 'main'
             state.temp_data = None
             session.commit()
-            
-            # ۱. فاکتور برای مشتری
+
             customer_msg = f"🎉 سفارش شما با کد {new_order.id} ثبت شد!\n\n"
             customer_msg += f"📦 **اقلام سفارش:**\n{items_text_customer}\n"
             customer_msg += f"💰 **مبلغ کل: {format_price(total_price)} تومان**\n\n"
             customer_msg += f"📍 آدرس: {new_order.address}\n📞 تلفن: {new_order.phone}\n\nما به زودی با شما تماس می‌گیریم."
             bot.send_message(chat_id, customer_msg, main_keyboard())
-            
-            # ۲. فاکتور برای هر مغازه‌دار (به تفکیک)
+
             for shop_id, data in shop_orders.items():
                 vendor_msg = f"🔔 سفارش جدید برای فروشگاه شما ({data['shop_name']})!\n\n"
                 vendor_msg += f"کد سفارش: {new_order.id}\n📞 شماره مشتری: {new_order.phone}\n📍 آدرس: {new_order.address}\n\n"
                 vendor_msg += f"📦 **اقلام این فروشگاه:**\n{data['items_text']}\n"
                 vendor_msg += f"💰 مبلغ قابل دریافت شما: {format_price(data['total'])} تومان"
                 try:
-                    # ارسال به آیدی عددی مغازه‌دار
                     bot.send_message(str(data['owner_id']), vendor_msg)
                 except Exception as e:
                     print(f"⚠️ خطا در ارسال به مغازه‌دار: {e}")
-            
-            # ۳. فاکتور کامل برای شما (سوپر ادمین)
+
             admin_msg = f"🔔 سفارش جدید در سیستم!\n\nکد: {new_order.id}\n📞 شماره: {new_order.phone}\n📍 آدرس: {new_order.address}\n\n📦 **کل اقلام:**\n{items_text_customer}\n💰 مبلغ کل: {format_price(total_price)} تومان"
-            try: 
+            try:
                 bot.send_message(ADMIN_ID, admin_msg)
             except: pass
             return
@@ -362,6 +347,38 @@ def start_vendor_panel(chat_id):
         session.commit()
     bot.send_message(chat_id, f"🏭 پنل فروشندگی:\nفروشگاه: {shop_name}", vendor_keyboard())
 
+# توابع جدید برای مدیریت محصولات مغازه‌دار
+def list_vendor_products(chat_id):
+    with Session() as session:
+        shops = session.query(Shop).filter_by(is_active=True).all()
+        shop = None
+        for s in shops:
+            if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                shop = s
+                break
+        if not shop: return
+        
+        products = session.query(Product).filter_by(shop_id=shop.id).all()
+        if not products:
+            bot.send_message(chat_id, "شما هنوز محصولی ثبت نکرده‌اید.")
+            return
+            
+        buttons = []
+        for p in products:
+            buttons.append([{"text": f"🗑 حذف: {p.name}", "callback_data": f"delvp_{p.id}"}])
+        
+        keyboard = {"inline_keyboard": buttons}
+        bot.send_message(chat_id, "لطفاً محصولی که تمام شده یا می‌خواهید حذف کنید را انتخاب کنید:", keyboard)
+
+def delete_vendor_product(chat_id, prod_id):
+    with Session() as session:
+        p = session.query(Product).get(prod_id)
+        if p:
+            session.delete(p)
+            session.commit()
+            bot.send_message(chat_id, f"✅ محصول '{p.name}' حذف شد.")
+            list_vendor_products(chat_id)
+
 def process_vendor_step(chat_id, text, photo=None):
     text = convert_to_english_digits(text)
     with Session() as session:
@@ -372,6 +389,11 @@ def process_vendor_step(chat_id, text, photo=None):
             state.state = 'vendor_name'
             session.commit()
             bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:")
+            return
+
+        # بخش جدید: مدیریت محصولات
+        if text == '📦 مدیریت محصولات' and state.state == 'vendor_menu':
+            list_vendor_products(chat_id)
             return
 
         if state.state == 'vendor_name':
