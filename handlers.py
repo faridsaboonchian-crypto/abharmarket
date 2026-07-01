@@ -28,8 +28,12 @@ def main_keyboard():
     return {"keyboard": [["🛒 مشاهده محصولات"], ["🛍 سبد خرید", "👤 پشتیبانی"]], "resize_keyboard": True}
 
 def vendor_keyboard():
-    # اضافه شدن دکمه مدیریت محصولات
-    return {"keyboard": [["➕ افزودن محصول جدید", "📦 مدیریت محصولات"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
+    # تغییر چیدمان دکمه‌ها به حالت ستونی برای رفع مشکل نمایش در بله
+    return {"keyboard": [
+        ["➕ افزودن محصول جدید"], 
+        ["📦 مدیریت محصولات"], 
+        ["🔙 بازگشت به منوی مشتری"]
+    ], "resize_keyboard": True}
 
 def admin_keyboard():
     return {"keyboard": [["➕ ثبت فروشگاه جدید", "🗑 حذف فروشگاه"], ["📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], ["🔙 بازگشت"]], "resize_keyboard": True}
