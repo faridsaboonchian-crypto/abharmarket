@@ -46,6 +46,11 @@ def reset_state_to_main(chat_id):
     start_bot(chat_id)
 
 def start_bot(chat_id, deep_link_data=None):
+    # بخش جدید: اگر کاربر دستور /start myid را زد، آیدی او را نشان می‌دهیم
+    if deep_link_data and deep_link_data == 'myid':
+        bot.send_message(chat_id, f"🔍 آیدی عددی شما در بله:\n{chat_id}\n\nاین عدد را به ادمین سیستم بدهید تا فروشگاه شما را ثبت کند.")
+        return
+
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
         if not state:
