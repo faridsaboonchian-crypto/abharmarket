@@ -559,10 +559,23 @@ def accept_order(chat_id, order_id):
             return
         order.status = 'accepted'
         session.commit()
-        customer_msg = f"✅ سفارش شما با کد {order.id} توسط فروشنده تایید شد و در حال آماده‌سازی است.\nبه زودی کالا برای شما ارسال خواهد شد."
-        try: bot.send_message(order.customer_id, customer_msg)
+        
+        # پیام به مشتری همراه با دکمه‌های انتخاب روش پرداخت
+        customer_msg = f"✅ سفارش شما با کد {order.id} توسط فروشنده تایید شد و در حال آماده‌سازی است.\n"
+        customer_msg += f"💰 مبلغ قابل پرداخت: {format_price(order.total_price)} تومان\n\n"
+        customer_msg += "لطفاً روش پرداخت خود را انتخاب کنید:"
+        
+        pay_keyboard = {
+            "inline_keyboard": [
+                [{"text": "💳 پرداخت آنلاین (کارت به کارت)", "callback_data": f"payonline_{order.id}"}],
+                [{"text": "🚪 پرداخت درب منزل (کارتی/نقدی)", "callback_data": f"paycod_{order.id}"}]
+            ]
+        }
+        try: 
+            bot.send_message(order.customer_id, customer_msg, pay_keyboard)
         except: pass
-        bot.send_message(chat_id, "شما این سفارش را تایید کردید. مشتری مطلع شد.")
+        
+        bot.send_message(chat_id, "شما این سفارش را تایید کردید. در انتظار انتخاب روش پرداخت توسط مشتری...")
 
 def process_vendor_step(chat_id, text, photo=None):
     text = convert_to_english_digits(text)
@@ -715,3 +728,42 @@ def process_vendor_step(chat_id, text, photo=None):
             session.commit()
             bot.send_message(chat_id, f"✅ محصول '{new_product.name}' ثبت شد!", vendor_keyboard())
             return
+        def handle_payment_online(chat_id, order_id):
+    with Session() as session:
+        order = session.query(Order).get(order_id)
+        if not order: return
+        shop = session.query(Shop).get(order.shop_id)
+        
+        # پیام به مشتری (نمایش شماره کارت)
+        customer_msg = "شما گزینه پرداخت آنلاین را انتخاب کردید.\n\n"
+        customer_msg += "لطفاً مبلغ سفارش را به کارت زیر واریز کنید:\n"
+        # در اینجا می‌توانید شماره کارت را ثابت بگذارید یا بعداً از دیتابیس بخوانید
+        customer_msg += "💳 ۶۱۰۴-۳۳۷۵-xxxx-xxxx\n"
+        customer_msg += "به نام: فروشنده تست\n\n"
+        customer_msg += "پس از واریز، عکس رسید را به همین چت ارسال کنید تا سفارش شما نهایی شود."
+        bot.send_message(chat_id, customer_msg)
+        
+        # پیام به مغازه‌دار
+        if shop:
+            vendor_msg = f"🔔 مشتری (کد سفارش {order.id}) گزینه 'پرداخت آنلاین' را انتخاب کرد.\n"
+            vendor_msg += "لطفاً منتظر ارسال عکس رسید کارت به کارت توسط مشتری باشید."
+            try: bot.send_message(shop.owner_chat_id, vendor_msg)
+            except: pass
+
+def handle_payment_cod(chat_id, order_id):
+    with Session() as session:
+        order = session.query(Order).get(order_id)
+        if not order: return
+        shop = session.query(Shop).get(order.shop_id)
+        
+        # پیام به مشتری
+        customer_msg = "شما گزینه پرداخت درب منزل را انتخاب کردید.\n\n"
+        customer_msg += "ℹ️ لطفاً مبلغ سفارش را آماده کنید. پیک موتوری به همراه خود کارت‌خوان سیار (پوز) خواهد داشت."
+        bot.send_message(chat_id, customer_msg)
+        
+        # پیام به مغازه‌دار
+        if shop:
+            vendor_msg = f"🔔 مشتری (کد سفارش {order.id}) گزینه 'پرداخت درب منزل' را انتخاب کرد.\n"
+            vendor_msg += "لطفاً به پیک خود اطلاع دهید که کارت‌خوان سیار (پوز) همراه خود ببرد."
+            try: bot.send_message(shop.owner_chat_id, vendor_msg)
+            except: pass
