@@ -397,21 +397,7 @@ def show_edit_product_menu(chat_id, prod_id):
         }
         bot.send_message(chat_id, f"مدیریت محصول:\n📦 {p.name}", keyboard)
 
-def start_edit_name(chat_id, prod_id):
-    with Session() as session:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state:
-            state = UserState(chat_id=str(chat_id))
-            session.add(state)
-        # تنظیم State جدید برای دریافت نام
-        state.state = 'vendor_edit_name'
-        state.temp_data = str(prod_id)
-        session.commit()
-        
-    # ارسال دکمه انصراف
-    cancel_kb = {"inline_keyboard": [[{"text": "❌ انصراف", "callback_data": "cancel_edit"}]]}
-    bot.send_message(chat_id, "لطفاً **نام جدید** محصول را ارسال کنید:", cancel_kb)
-
+# این تابع کاملا ایمن‌سازی شده و State آن تنظیم شده است
 def start_edit_name(chat_id, prod_id):
     session = Session()
     try:
@@ -420,12 +406,10 @@ def start_edit_name(chat_id, prod_id):
             state = UserState(chat_id=str(chat_id))
             session.add(state)
         
-        # تنظیم وضعیت جدید برای دریافت نام
-        state.state = 'EDIT_PRODUCT_NAME'
+        state.state = 'vendor_edit_name'
         state.temp_data = str(prod_id)
         session.commit()
         
-        # دکمه انصراف شیشه‌ای
         cancel_kb = {"inline_keyboard": [[{"text": "❌ انصراف", "callback_data": "cancel_edit"}]]}
         bot.send_message(chat_id, "لطفاً **نام جدید** محصول را ارسال کنید:", cancel_kb)
     except Exception as e:
@@ -497,9 +481,8 @@ def process_vendor_step(chat_id, text, photo=None):
             list_vendor_products(chat_id)
             return
 
-        # ---------------- بخش مدیریت State ویرایش نام (باگ ۲) ----------------
+        # ---------------- بخش مدیریت State ویرایش نام ----------------
         if state.state == 'vendor_edit_name':
-            # اعتبارسنجی نام
             if is_button(text) or not text or len(text) < 2:
                 bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر (حداقل ۲ حرف) تایپ کنید:")
                 return
@@ -511,7 +494,6 @@ def process_vendor_step(chat_id, text, photo=None):
                 bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
             else:
                 bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            # ریست کردن State به منوی فروشندگی
             state.state = 'vendor_menu'
             state.temp_data = None
             session.commit()

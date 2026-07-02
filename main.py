@@ -1,4 +1,4 @@
-# main.py
+import logging
 import requests
 import time
 import os
@@ -11,6 +11,13 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       show_admin_panel, list_shops, list_shops_for_delete, delete_shop, 
                       process_admin_step, reset_state_to_main, vendor_keyboard, bot)
 from config import BOT_TOKEN
+
+# تنظیم سیستم لاگ‌گیری برای چاپ خطاها در ترمینال
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # تنظیم سشن بدون استفاده از پروکسی سیستم (فیلترشکن)
 session = requests.Session()
@@ -43,7 +50,7 @@ def get_updates(offset):
 
 def main():
     last_update_id = load_last_update_id()
-    print(f"🚀 ربات AbharMarket روشن شد. (آخرین آپدیت: {last_update_id})")
+    logger.info(f"🚀 ربات AbharMarket روشن شد. (آخرین آپدیت: {last_update_id})")
     
     while True:
         updates = get_updates(last_update_id + 1)
@@ -68,14 +75,17 @@ def main():
                 photo = message.get('photo')
             elif callback:
                 # پاسخ به Callback برای توقف ساعت شنی بله (بسیار مهم)
-                bot.answer_callback_query(callback.get('id'))
+                try:
+                    bot.answer_callback_query(callback.get('id'))
+                except Exception as e:
+                    logger.error(f"Error answering callback: {e}")
                 chat_id = callback['message']['chat']['id']
                 text = callback.get('data', '')
                 user_id = callback['from']['id']
             else:
                 continue
                 
-            print(f"📩 پیام از {chat_id}: {'عکس' if photo else text}")
+            logger.info(f"📩 پیام از {chat_id}: {'عکس' if photo else text}")
 
             try:
                 with Session() as s:
@@ -162,6 +172,10 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                     
             except Exception as e:
-                print(f"⚠️ خطا در پردازش: {e}")
+                logger.error(f"⚠️ خطا در پردازش: {e}", exc_info=True)
                 
         time.sleep(0.5)
+
+# بلاک اجرایی اصلی که باعث اجرای ربات می‌شود (مهمترین بخش برای حل مشکل عدم اجرا)
+if __name__ == '__main__':
+    main()
