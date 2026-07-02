@@ -73,18 +73,15 @@ def main():
                 text = message.get('text', '')
                 user_id = message['from']['id']
                 photo = message.get('photo')
-                print(f"DEBUG: Received Message. Chat: {chat_id}, Text: {text}")
             elif callback:
-                # پاسخ به Callback برای توقف ساعت شنی بله (بسیار مهم)
+                # پاسخ به Callback برای توقف ساعت شنی بله
                 try:
                     bot.answer_callback_query(callback.get('id'))
-                    print(f"DEBUG: Answered callback {callback.get('id')}")
                 except Exception as e:
                     logger.error(f"Error answering callback: {e}")
                 chat_id = callback['message']['chat']['id']
                 text = callback.get('data', '')
                 user_id = callback['from']['id']
-                print(f"DEBUG: Received Callback. Chat: {chat_id}, Data: {text}")
             else:
                 continue
 
@@ -93,9 +90,8 @@ def main():
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
-                # ۱. اولویت اول: دکمه‌های منوی اصلی (برای حل باگ ۱)
+                # ۱. اولویت اول: دکمه‌های منوی اصلی (برای حل باگ سبد خرید)
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    print("DEBUG: Cart button matched.")
                     if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
                         with Session() as s:
                             state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
@@ -118,6 +114,8 @@ def main():
                     start_bot(chat_id, deep_link)
                 elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
                     reset_state_to_main(chat_id)
+                elif text == '/vendor':  # <--- این خط اضافه شد تا مشکل عدم واکنش به وندور حل شود
+                    start_vendor_panel(chat_id)
                     
                 # ۳. دکمه‌های شیشه‌ای (Callback ها)
                 elif text.startswith('add_'):
