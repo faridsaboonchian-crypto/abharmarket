@@ -10,7 +10,7 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       start_vendor_panel, process_vendor_step, list_vendor_products, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
-                      handle_payment_online, handle_payment_cod, # <--- این دو تابع اضافه شد
+                      handle_payment_online, handle_payment_cod,
                       show_admin_panel, list_shops, list_shops_for_delete, delete_shop, 
                       process_admin_step, reset_state_to_main, vendor_keyboard, bot)
 from config import BOT_TOKEN
@@ -155,7 +155,6 @@ def main():
                 elif text.startswith('accept_'):
                     order_id = int(text.replace('accept_', ''))
                     accept_order(chat_id, order_id)
-                # بخش جدید: مسیردهی دکمه‌های پرداخت
                 elif text.startswith('payonline_'):
                     order_id = int(text.replace('payonline_', ''))
                     handle_payment_online(chat_id, order_id)
@@ -172,7 +171,7 @@ def main():
                     process_vendor_step(chat_id, text, photo)
                 elif current_state.startswith('waiting'):
                     process_checkout_step(chat_id, user_id, text)
-                elif current_state == 'adding_quantity':  # مدیریت وضعیت دریافت تعداد محصول
+                elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
                     
             except Exception as e:
