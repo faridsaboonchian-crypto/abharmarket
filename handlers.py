@@ -241,6 +241,7 @@ def add_to_cart(chat_id, user_id, product_id):
     bot.send_message(chat_id, "لطفاً **تعداد** مورد نظر خود را برای این محصول به عدد وارد کنید (مثلاً ۲):")
 
 def process_quantity_step(chat_id, user_id, text):
+    print(f"DEBUG: Entering process_quantity_step. Text: {text}")
     text = convert_to_english_digits(text)
     if not text.isdigit() or int(text) <= 0:
         bot.send_message(chat_id, "⚠️ لطفاً یک عدد معتبر و بزرگتر از صفر وارد کنید:")
@@ -249,9 +250,19 @@ def process_quantity_step(chat_id, user_id, text):
     quantity = int(text)
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state: return
-        
-        prod_id = int(state.temp_data)
+        if not state:
+            print("DEBUG: State not found in process_quantity_step.")
+            return
+            
+        try:
+            prod_id = int(state.temp_data)
+        except (ValueError, TypeError):
+            bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول. لطفاً مجدداً تلاش کنید.", main_keyboard())
+            state.state = 'main'
+            state.temp_data = None
+            session.commit()
+            return
+            
         product = session.query(Product).get(prod_id)
         if not product:
             bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
@@ -277,7 +288,10 @@ def process_quantity_step(chat_id, user_id, text):
         state.temp_data = None
         session.commit()
         
-    bot.send_message(chat_id, f"✅ {quantity} عدد از '{product.name}' به سبد شما اضافه شد.")
+        # استخراج نام محصول قبل از بسته شدن سشن دیتابیس
+        product_name = product.name
+        
+    bot.send_message(chat_id, f"✅ {quantity} عدد از '{product_name}' به سبد شما اضافه شد.")
 
 def show_cart(chat_id, user_id):
     with Session() as session:
