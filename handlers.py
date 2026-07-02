@@ -229,15 +229,18 @@ def add_to_cart(chat_id, user_id, product_id):
         bot.send_message(chat_id, f"✅ '{product.name}' اضافه شد.")
 
 def show_cart(chat_id, user_id):
+    print(f"DEBUG: Entering show_cart for user {user_id}")
     with Session() as session:
         cart_items = session.query(Cart).filter_by(customer_eitaa_id=str(user_id)).all()
         if not cart_items:
+            print("DEBUG: Cart is empty.")
             bot.send_message(chat_id, "🛍 سبد خرید شما خالی است.")
             return
         msg = "🛍 **فاکتور خرید شما:**\n\n"
         total_price = 0
         for item in cart_items:
             p = session.query(Product).get(item.product_id)
+            if not p: continue # جلوگیری از کرش اگر محصول پاک شده باشد
             item_total = p.price * item.quantity
             total_price += item_total
             msg += f"▫️ {p.name}\n   {item.quantity} عدد × {format_price(p.price)} = {format_price(item_total)} تومان\n"
@@ -399,34 +402,40 @@ def show_edit_product_menu(chat_id, prod_id):
 
 # این تابع کاملا ایمن‌سازی شده و State آن تنظیم شده است
 def start_edit_name(chat_id, prod_id):
-    session = Session()
-    try:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state:
-            state = UserState(chat_id=str(chat_id))
-            session.add(state)
-        
-        state.state = 'vendor_edit_name'
-        state.temp_data = str(prod_id)
-        session.commit()
-        
-        cancel_kb = {"inline_keyboard": [[{"text": "❌ انصراف", "callback_data": "cancel_edit"}]]}
-        bot.send_message(chat_id, "لطفاً **نام جدید** محصول را ارسال کنید:", cancel_kb)
-    except Exception as e:
-        session.rollback()
-        print(f"DB Error in start_edit_name: {e}")
-    finally:
-        session.close()
+    print(f"DEBUG: Entering start_edit_name for product {prod_id}")
+    with Session() as session:
+        try:
+            state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+            if not state:
+                state = UserState(chat_id=str(chat_id))
+                session.add(state)
+            
+            state.state = 'vendor_edit_name'
+            state.temp_data = str(prod_id)
+            session.commit()
+            print(f"DEBUG: State set to 'vendor_edit_name' for chat {chat_id}")
+            
+            cancel_kb = {"inline_keyboard": [[{"text": "❌ انصراف", "callback_data": "cancel_edit"}]]}
+            bot.send_message(chat_id, "لطفاً **نام جدید** محصول را ارسال کنید:", cancel_kb)
+        except Exception as e:
+            session.rollback()
+            print(f"DB Error in start_edit_name: {e}")
 
 def start_edit_price(chat_id, prod_id):
+    print(f"DEBUG: Entering start_edit_price for product {prod_id}")
     with Session() as session:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state:
-            state = UserState(chat_id=str(chat_id))
-            session.add(state)
-        state.state = 'vendor_edit_price'
-        state.temp_data = str(prod_id)
-        session.commit()
+        try:
+            state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+            if not state:
+                state = UserState(chat_id=str(chat_id))
+                session.add(state)
+            state.state = 'vendor_edit_price'
+            state.temp_data = str(prod_id)
+            session.commit()
+            print(f"DEBUG: State set to 'vendor_edit_price' for chat {chat_id}")
+        except Exception as e:
+            session.rollback()
+            print(f"DB Error in start_edit_price: {e}")
     bot.send_message(chat_id, "لطفاً **قیمت جدید** را به تومان وارد کنید (فقط عدد):")
 
 def start_edit_stock(chat_id, prod_id):
@@ -466,10 +475,15 @@ def accept_order(chat_id, order_id):
         bot.send_message(chat_id, "شما این سفارش را تایید کردید. مشتری مطلع شد.")
 
 def process_vendor_step(chat_id, text, photo=None):
+    print(f"DEBUG: Entering process_vendor_step. Text: {text}")
     text = convert_to_english_digits(text)
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state: return
+        if not state:
+            print("DEBUG: State not found in process_vendor_step.")
+            return
+
+        print(f"DEBUG: Current vendor state is {state.state}")
 
         if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
             state.state = 'vendor_name'
@@ -483,14 +497,24 @@ def process_vendor_step(chat_id, text, photo=None):
 
         # ---------------- بخش مدیریت State ویرایش نام ----------------
         if state.state == 'vendor_edit_name':
+            print("DEBUG: Processing vendor_edit_name state.")
             if is_button(text) or not text or len(text) < 2:
                 bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر (حداقل ۲ حرف) تایپ کنید:")
                 return
-            prod_id = int(state.temp_data)
+            try:
+                prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول. لطفاً مجدداً تلاش کنید.", vendor_keyboard())
+                state.state = 'vendor_menu'
+                state.temp_data = None
+                session.commit()
+                return
+                
             p = session.query(Product).get(prod_id)
             if p:
                 p.name = text
                 session.commit()
+                print(f"DEBUG: Product {prod_id} name updated to {text}.")
                 bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
             else:
                 bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
@@ -502,30 +526,54 @@ def process_vendor_step(chat_id, text, photo=None):
 
         # ---------------- بخش ویرایش قیمت و موجودی ----------------
         if state.state == 'vendor_edit_price':
+            print("DEBUG: Processing vendor_edit_price state.")
             if not text.isdigit():
                 bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد. دوباره وارد کنید:")
                 return
-            prod_id = int(state.temp_data)
+            try:
+                prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'
+                state.temp_data = None
+                session.commit()
+                return
+
             p = session.query(Product).get(prod_id)
             if p:
                 p.price = float(text)
                 session.commit()
+                print(f"DEBUG: Product {prod_id} price updated to {text}.")
                 bot.send_message(chat_id, "✅ قیمت با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else:
+                bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
             state.state = 'vendor_menu'
             state.temp_data = None
             session.commit()
             return
 
         elif state.state == 'vendor_edit_stock':
+            print("DEBUG: Processing vendor_edit_stock state.")
             if not text.isdigit():
                 bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:")
                 return
-            prod_id = int(state.temp_data)
+            try:
+                prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'
+                state.temp_data = None
+                session.commit()
+                return
+
             p = session.query(Product).get(prod_id)
             if p:
                 p.stock = int(text)
                 session.commit()
+                print(f"DEBUG: Product {prod_id} stock updated to {text}.")
                 bot.send_message(chat_id, "✅ موجودی با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else:
+                bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
             state.state = 'vendor_menu'
             state.temp_data = None
             session.commit()

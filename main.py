@@ -73,19 +73,20 @@ def main():
                 text = message.get('text', '')
                 user_id = message['from']['id']
                 photo = message.get('photo')
+                print(f"DEBUG: Received Message. Chat: {chat_id}, Text: {text}")
             elif callback:
                 # پاسخ به Callback برای توقف ساعت شنی بله (بسیار مهم)
                 try:
                     bot.answer_callback_query(callback.get('id'))
+                    print(f"DEBUG: Answered callback {callback.get('id')}")
                 except Exception as e:
                     logger.error(f"Error answering callback: {e}")
                 chat_id = callback['message']['chat']['id']
                 text = callback.get('data', '')
                 user_id = callback['from']['id']
+                print(f"DEBUG: Received Callback. Chat: {chat_id}, Data: {text}")
             else:
                 continue
-                
-            logger.info(f"📩 پیام از {chat_id}: {'عکس' if photo else text}")
 
             try:
                 with Session() as s:
@@ -93,9 +94,8 @@ def main():
                     current_state = state_obj.state if state_obj else 'main'
 
                 # ۱. اولویت اول: دکمه‌های منوی اصلی (برای حل باگ ۱)
-                # این دکمه‌ها قبل از State ها چک می‌شوند تا همیشه جواب بدهند
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    # ریست کردن امن State کاربر
+                    print("DEBUG: Cart button matched.")
                     if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
                         with Session() as s:
                             state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
@@ -146,10 +146,10 @@ def main():
                 elif text.startswith('edits_'):
                     prod_id = int(text.replace('edits_', ''))
                     start_edit_stock(chat_id, prod_id)
-                elif text.startswith('editn_'): # مسیر ویرایش نام
+                elif text.startswith('editn_'):
                     prod_id = int(text.replace('editn_', ''))
                     start_edit_name(chat_id, prod_id)
-                elif text == 'cancel_edit': # مسیر انصراف
+                elif text == 'cancel_edit':
                     with Session() as s:
                         state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                         if state_obj:
@@ -176,6 +176,5 @@ def main():
                 
         time.sleep(0.5)
 
-# بلاک اجرایی اصلی که باعث اجرای ربات می‌شود (مهمترین بخش برای حل مشکل عدم اجرا)
 if __name__ == '__main__':
     main()
