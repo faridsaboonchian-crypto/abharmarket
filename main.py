@@ -7,7 +7,7 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
                       start_vendor_panel, process_vendor_step, list_vendor_products, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
-                      start_edit_stock, accept_order,
+                      start_edit_stock, start_edit_name, accept_order,
                       show_admin_panel, list_shops, list_shops_for_delete, delete_shop, 
                       process_admin_step, reset_state_to_main, bot)
 from config import BOT_TOKEN
@@ -87,7 +87,15 @@ def main():
                 elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
                     reset_state_to_main(chat_id)
                     
-                # ۲. دکمه‌های شیشه‌ای (این بخش را بالاتر از سایر بخش‌ها آوردیم تا گیر نیفتند)
+                # ۲. دکمه‌های منوی اصلی مشتری (این بخش بالاتر آمد تا گیر نکنند)
+                elif text == "🛒 مشاهده محصولات":
+                    show_shops_menu(chat_id)
+                elif text == "🛍 سبد خرید":
+                    show_cart(chat_id, user_id)
+                elif text == "👤 پشتیبانی":
+                    bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
+                    
+                # ۳. دکمه‌های شیشه‌ای (Callback ها)
                 elif text.startswith('add_'):
                     prod_id = int(text.replace('add_', ''))
                     add_to_cart(chat_id, user_id, prod_id)
@@ -114,26 +122,22 @@ def main():
                 elif text.startswith('edits_'):
                     prod_id = int(text.replace('edits_', ''))
                     start_edit_stock(chat_id, prod_id)
+                elif text.startswith('editn_'):
+                    prod_id = int(text.replace('editn_', ''))
+                    start_edit_name(chat_id, prod_id)
                 elif text.startswith('accept_'):
                     order_id = int(text.replace('accept_', ''))
                     accept_order(chat_id, order_id)
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                # ۳. مدیریت پنل‌ها (بعد از دکمه‌های شیشه‌ای)
+                # ۴. مدیریت پنل‌ها
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
                     process_vendor_step(chat_id, text, photo)
                 elif current_state.startswith('waiting'):
                     process_checkout_step(chat_id, user_id, text)
-                        
-                # ۴. منوی اصلی مشتری
-                elif current_state == 'main':
-                    if text == '/vendor': start_vendor_panel(chat_id)
-                    elif text == "🛒 مشاهده محصولات": show_shops_menu(chat_id)
-                    elif text == "🛍 سبد خرید": show_cart(chat_id, user_id)
-                    elif text == "👤 پشتیبانی": bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
                     
             except Exception as e:
                 print(f"⚠️ خطا در پردازش: {e}")
