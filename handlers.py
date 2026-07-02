@@ -401,7 +401,7 @@ def start_edit_price(chat_id, prod_id):
         if not state:
             state = UserState(chat_id=str(chat_id))
             session.add(state)
-        state.state = 'waiting_edit_price'
+        state.state = 'vendor_edit_price' # تغییر نام اینجا
         state.temp_data = str(prod_id)
         session.commit()
     bot.send_message(chat_id, "لطفاً **قیمت جدید** را به تومان وارد کنید (فقط عدد):")
@@ -412,7 +412,7 @@ def start_edit_stock(chat_id, prod_id):
         if not state:
             state = UserState(chat_id=str(chat_id))
             session.add(state)
-        state.state = 'waiting_edit_stock'
+        state.state = 'vendor_edit_stock' # تغییر نام اینجا
         state.temp_data = str(prod_id)
         session.commit()
     bot.send_message(chat_id, "لطفاً **موجودی جدید** را وارد کنید (فقط عدد):")
@@ -458,7 +458,8 @@ def process_vendor_step(chat_id, text, photo=None):
             list_vendor_products(chat_id)
             return
 
-        if state.state == 'waiting_edit_price':
+        # ---------------- بخش ویرایش قیمت و موجودی ----------------
+        if state.state == 'vendor_edit_price': # تغییر نام اینجا
             if not text.isdigit():
                 bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد. دوباره وارد کنید:")
                 return
@@ -473,7 +474,7 @@ def process_vendor_step(chat_id, text, photo=None):
             session.commit()
             return
 
-        elif state.state == 'waiting_edit_stock':
+        elif state.state == 'vendor_edit_stock': # تغییر نام اینجا
             if not text.isdigit():
                 bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:")
                 return
@@ -487,6 +488,7 @@ def process_vendor_step(chat_id, text, photo=None):
             state.temp_data = None
             session.commit()
             return
+        # ----------------------------------------------------------------
 
         if state.state == 'vendor_name':
             if is_button(text):
