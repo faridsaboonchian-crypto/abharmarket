@@ -3,6 +3,7 @@ from database import Session, Product, Cart, Order, UserState, Shop
 from bot_api import BotAPI
 from config import BOT_TOKEN
 from sqlalchemy.exc import IntegrityError
+import time
 
 bot = BotAPI(BOT_TOKEN)
 ADMIN_ID = "1563770441"
@@ -195,6 +196,7 @@ def show_shop_products(chat_id, shop_id):
         bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:", keyboard)
 
 def show_category_products(chat_id, shop_id, category):
+    print(f"DEBUG: Entering show_category_products for shop {shop_id}, cat {category}")
     with Session() as session:
         if category == "سایر":
             products = session.query(Product).filter(
@@ -207,14 +209,25 @@ def show_category_products(chat_id, shop_id, category):
         if not products:
             bot.send_message(chat_id, "محصولی در این دسته یافت نشد.")
             return
+            
         bot.send_message(chat_id, f"🛍️ دسته‌بندی: {category}")
+        
         for p in products:
             text = f"📦 {p.name}\n💰 قیمت: {format_price(p.price)} تومان\nموجودی: {p.stock} عدد"
             if p.description and p.description not in ['None', 'empty_desc']:
                 text += f"\n📝 توضیحات: {p.description}"
             keyboard = {"inline_keyboard": [[{"text": "➕ افزودن به سبد", "callback_data": f"add_{p.id}"}]]}
-            if p.image_file_id: bot.send_photo(chat_id, p.image_file_id, text, keyboard)
-            else: bot.send_message(chat_id, text, keyboard)
+            
+            if p.image_file_id:
+                try:
+                    bot.send_photo(chat_id, p.image_file_id, text, keyboard)
+                    # تاخیر 0.5 ثانیه‌ای برای جلوگیری از مسدود شدن ربات توسط بله (Rate Limit)
+                    time.sleep(0.5) 
+                except Exception as e:
+                    print(f"Error sending photo: {e}")
+            else:
+                bot.send_message(chat_id, text, keyboard)
+                time.sleep(0.2)
 
 def add_to_cart(chat_id, user_id, product_id):
     with Session() as session:

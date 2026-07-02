@@ -105,7 +105,7 @@ def main():
                     show_shops_menu(chat_id)
                     
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
-                    bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
+                    bot.send_message(chat_id, "برای پشتیبانی با شماره 09375894000... تماس بگیرید.")
 
                 # ۲. دستورات سراسری
                 elif text.startswith('/start'):
