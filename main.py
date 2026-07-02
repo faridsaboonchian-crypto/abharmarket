@@ -6,7 +6,7 @@ import os
 from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
-                      remove_cart_item, clear_cart,
+                      remove_cart_item, clear_cart, process_quantity_step,
                       start_vendor_panel, process_vendor_step, list_vendor_products, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order,
@@ -82,8 +82,9 @@ def main():
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
+                # ۱. دکمه‌های منوی اصلی
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
+                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address', 'adding_quantity']:
                         with Session() as s:
                             state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                             if state_obj:
@@ -96,6 +97,8 @@ def main():
                     show_shops_menu(chat_id)
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
                     bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
+                    
+                # ۲. دستورات سراسری
                 elif text.startswith('/start'):
                     parts = text.split()
                     deep_link = parts[1] if len(parts) > 1 else None
@@ -105,6 +108,7 @@ def main():
                 elif text == '/vendor':
                     start_vendor_panel(chat_id)
                     
+                # ۳. دکمه‌های شیشه‌ای (Callback ها)
                 elif text.startswith('add_'):
                     prod_id = int(text.replace('add_', ''))
                     add_to_cart(chat_id, user_id, prod_id)
@@ -153,12 +157,15 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
+                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
                     process_vendor_step(chat_id, text, photo)
                 elif current_state.startswith('waiting'):
                     process_checkout_step(chat_id, user_id, text)
+                elif current_state == 'adding_quantity':  # مدیریت وضعیت دریافت تعداد محصول
+                    process_quantity_step(chat_id, user_id, text)
                     
             except Exception as e:
                 logger.error(f"⚠️ خطا در پردازش: {e}", exc_info=True)

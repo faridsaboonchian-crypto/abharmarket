@@ -229,15 +229,55 @@ def show_category_products(chat_id, shop_id, category):
 
 def add_to_cart(chat_id, user_id, product_id):
     with Session() as session:
-        product = session.query(Product).get(product_id)
-        if not product: return
-        cart_item = session.query(Cart).filter_by(customer_eitaa_id=str(user_id), product_id=product_id).first()
-        if cart_item: cart_item.quantity += 1
-        else:
-            cart_item = Cart(customer_eitaa_id=str(user_id), product_id=product_id, quantity=1)
-            session.add(cart_item)
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        # تنظیم وضعیت برای پرسیدن تعداد
+        state.state = 'adding_quantity'
+        state.temp_data = str(product_id)
         session.commit()
-        bot.send_message(chat_id, f"✅ '{product.name}' اضافه شد.")
+        
+    bot.send_message(chat_id, "لطفاً **تعداد** مورد نظر خود را برای این محصول به عدد وارد کنید (مثلاً ۲):")
+
+def process_quantity_step(chat_id, user_id, text):
+    text = convert_to_english_digits(text)
+    if not text.isdigit() or int(text) <= 0:
+        bot.send_message(chat_id, "⚠️ لطفاً یک عدد معتبر و بزرگتر از صفر وارد کنید:")
+        return
+        
+    quantity = int(text)
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state: return
+        
+        prod_id = int(state.temp_data)
+        product = session.query(Product).get(prod_id)
+        if not product:
+            bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'main'
+            session.commit()
+            return
+            
+        if product.stock < quantity:
+            bot.send_message(chat_id, f"⚠️ موجودی کافی نیست. حداکثر {product.stock} عدد موجود است.")
+            state.state = 'main'
+            session.commit()
+            return
+            
+        cart_item = session.query(Cart).filter_by(customer_eitaa_id=str(user_id), product_id=prod_id).first()
+        if cart_item:
+            cart_item.quantity += quantity
+        else:
+            cart_item = Cart(customer_eitaa_id=str(user_id), product_id=prod_id, quantity=quantity)
+            session.add(cart_item)
+            
+        # ریست کردن State به منوی اصلی
+        state.state = 'main'
+        state.temp_data = None
+        session.commit()
+        
+    bot.send_message(chat_id, f"✅ {quantity} عدد از '{product.name}' به سبد شما اضافه شد.")
 
 def show_cart(chat_id, user_id):
     with Session() as session:
