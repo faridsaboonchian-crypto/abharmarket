@@ -383,18 +383,24 @@ def list_vendor_products(chat_id):
         bot.send_message(chat_id, "لطفاً محصولی که می‌خواهید ویرایش یا حذف کنید را انتخاب کنید:", keyboard)
 
 def show_edit_product_menu(chat_id, prod_id):
-    with Session() as session:
+    session = Session()
+    try:
         p = session.query(Product).get(prod_id)
         if not p: return
+        # استفاده از callback_data کوتاه برای جلوگیری از خطای 64 بایتی بله
         keyboard = {
             "inline_keyboard": [
-                [{"text": "✏️ ویرایش نام", "callback_data": f"editn_{p.id}"}],
+                [{"text": "✏️ ویرایش نام", "callback_data": f"en_{p.id}"}],
                 [{"text": "💵 ویرایش قیمت", "callback_data": f"editp_{p.id}"}],
                 [{"text": "📊 ویرایش موجودی", "callback_data": f"edits_{p.id}"}],
                 [{"text": "🗑 حذف محصول", "callback_data": f"delvp_{p.id}"}]
             ]
         }
         bot.send_message(chat_id, f"مدیریت محصول:\n📦 {p.name}", keyboard)
+    except Exception as e:
+        print(f"DB Error in show_edit_product_menu: {e}")
+    finally:
+        session.close()
 
 def start_edit_name(chat_id, prod_id):
     with Session() as session:
@@ -406,6 +412,28 @@ def start_edit_name(chat_id, prod_id):
         state.temp_data = str(prod_id)
         session.commit()
     bot.send_message(chat_id, "لطفاً **نام جدید** محصول را وارد کنید:")
+
+def start_edit_name(chat_id, prod_id):
+    session = Session()
+    try:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        
+        # تنظیم وضعیت جدید برای دریافت نام
+        state.state = 'EDIT_PRODUCT_NAME'
+        state.temp_data = str(prod_id)
+        session.commit()
+        
+        # دکمه انصراف شیشه‌ای
+        cancel_kb = {"inline_keyboard": [[{"text": "❌ انصراف", "callback_data": "cancel_edit"}]]}
+        bot.send_message(chat_id, "لطفاً **نام جدید** محصول را ارسال کنید:", cancel_kb)
+    except Exception as e:
+        session.rollback()
+        print(f"DB Error in start_edit_name: {e}")
+    finally:
+        session.close()
 
 def start_edit_price(chat_id, prod_id):
     with Session() as session:
@@ -459,6 +487,33 @@ def process_vendor_step(chat_id, text, photo=None):
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
         if not state: return
+        # مدیریت وضعیت ویرایش نام محصول
+        if state.state == 'EDIT_PRODUCT_NAME':
+            # اعتبارسنجی نام
+            if not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر وارد کنید:")
+                return
+            
+            prod_id = int(state.temp_data)
+            p = session.query(Product).get(prod_id)
+            if p:
+                try:
+                    p.name = text
+                    session.commit()
+                    # ارسال پیام موفقیت با فرمت ساده (بدون MarkdownV2 پیچیده)
+                    bot.send_message(chat_id, f"✅ نام محصول با موفقیت به '{p.name}' تغییر یافت.", vendor_keyboard())
+                except Exception as e:
+                    session.rollback()
+                    bot.send_message(chat_id, "⚠️ خطا در بروزرسانی دیتابیس. دوباره تلاش کنید.")
+                    print(f"DB Error updating name: {e}")
+            else:
+                bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            
+            # ریست کردن وضعیت در هر صورت
+            state.state = 'vendor_menu'
+            state.temp_data = None
+            session.commit()
+            return
 
         if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
             state.state = 'vendor_name'
