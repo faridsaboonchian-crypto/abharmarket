@@ -556,6 +556,32 @@ def handle_payment_cod(chat_id, order_id):
             try: bot.send_message(shop.owner_chat_id, vendor_msg)
             except: pass
 
+def handle_customer_photo(chat_id, user_id, photo):
+    print(f"DEBUG: Received photo from customer {user_id}")
+    with Session() as session:
+        # پیدا کردن آخرین سفارش این مشتری
+        order = session.query(Order).filter_by(customer_id=str(user_id)).order_by(Order.id.desc()).first()
+        if not order:
+            bot.send_message(chat_id, "شما سفارش فعالی ندارید. لطفاً ابتدا خرید خود را نهایی کنید.")
+            return
+
+        shop = session.query(Shop).get(order.shop_id)
+        if not shop:
+            bot.send_message(chat_id, "فروشگاه مربوط به سفارش شما یافت نشد.")
+            return
+
+        file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
+        caption = f"📸 رسید پرداخت جدید\n\nکد سفارش: {order.id}\n📞 شماره مشتری: {order.phone}\n💰 مبلغ: {format_price(order.total_price)} تومان\n\nلطفاً صحت واریز را بررسی کرده و در صورت تایید، سفارش را ارسال نمایید."
+
+        try:
+            # فوروارد عکس برای مغازه‌دار
+            bot.send_photo(shop.owner_chat_id, file_id, caption)
+            # پیام تایید به مشتری
+            bot.send_message(chat_id, "✅ رسید شما دریافت شد و برای فروشنده ارسال گردید.\nپس از تایید واریز وجه توسط فروشنده، سفارش شما ارسال خواهد شد. سپاس از صبوری شما!")
+        except Exception as e:
+            print(f"Error forwarding photo to vendor: {e}")
+            bot.send_message(chat_id, "⚠️ خطا در ارسال رسید به فروشنده. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.")
+
 def process_vendor_step(chat_id, text, photo=None):
     text = convert_to_english_digits(text)
     with Session() as session:

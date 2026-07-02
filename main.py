@@ -6,7 +6,7 @@ import os
 from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
-                      remove_cart_item, clear_cart, process_quantity_step,
+                      remove_cart_item, clear_cart, process_quantity_step, handle_customer_photo,
                       start_vendor_panel, process_vendor_step, list_vendor_products, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
@@ -164,7 +164,7 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
@@ -173,6 +173,9 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                 elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
+                # بخش جدید: اگر مشتری در حالت عادی عکس فرستاد، آن را به عنوان رسید پرداخت در نظر بگیر
+                elif photo and current_state == 'main':
+                    handle_customer_photo(chat_id, user_id, photo)
                     
             except Exception as e:
                 logger.error(f"⚠️ خطا در پردازش: {e}", exc_info=True)
