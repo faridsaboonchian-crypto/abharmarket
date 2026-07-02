@@ -326,7 +326,6 @@ def process_checkout_step(chat_id, user_id, text):
                 vendor_msg += f"📦 **اقلام این فروشگاه:**\n{data['items_text']}\n"
                 vendor_msg += f"💰 مبلغ قابل دریافت شما: {format_price(data['total'])} تومان"
                 
-                # دکمه تایید سفارش برای مغازه دار
                 accept_keyboard = {"inline_keyboard": [[{"text": "✅ تایید سفارش و ارسال", "callback_data": f"accept_{new_order.id}"}]]}
                 try:
                     bot.send_message(str(data['owner_id']), vendor_msg, accept_keyboard)
@@ -399,7 +398,10 @@ def show_edit_product_menu(chat_id, prod_id):
 def start_edit_price(chat_id, prod_id):
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        state.state = 'waiting_edit_price'
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'vendor_edit_price' # تغییر نام اینجا
         state.temp_data = str(prod_id)
         session.commit()
     bot.send_message(chat_id, "لطفاً **قیمت جدید** را به تومان وارد کنید (فقط عدد):")
@@ -407,7 +409,10 @@ def start_edit_price(chat_id, prod_id):
 def start_edit_stock(chat_id, prod_id):
     with Session() as session:
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        state.state = 'waiting_edit_stock'
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'vendor_edit_stock' # تغییر نام اینجا
         state.temp_data = str(prod_id)
         session.commit()
     bot.send_message(chat_id, "لطفاً **موجودی جدید** را وارد کنید (فقط عدد):")
@@ -430,7 +435,6 @@ def accept_order(chat_id, order_id):
         order.status = 'accepted'
         session.commit()
         
-        # پیام به مشتری
         customer_msg = f"✅ سفارش شما با کد {order.id} توسط فروشنده تایید شد و در حال آماده‌سازی است.\nبه زودی کالا برای شما ارسال خواهد شد."
         try:
             bot.send_message(order.customer_id, customer_msg)
@@ -454,10 +458,10 @@ def process_vendor_step(chat_id, text, photo=None):
             list_vendor_products(chat_id)
             return
 
-        # ---------------- بخش جدید: ویرایش قیمت و موجودی ----------------
-        if state.state == 'waiting_edit_price':
+        # ---------------- بخش ویرایش قیمت و موجودی ----------------
+        if state.state == 'vendor_edit_price': # تغییر نام اینجا
             if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ قیمت باید عدد باشد:")
+                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد. دوباره وارد کنید:")
                 return
             prod_id = int(state.temp_data)
             p = session.query(Product).get(prod_id)
@@ -470,9 +474,9 @@ def process_vendor_step(chat_id, text, photo=None):
             session.commit()
             return
 
-        elif state.state == 'waiting_edit_stock':
+        elif state.state == 'vendor_edit_stock': # تغییر نام اینجا
             if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:")
+                bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:")
                 return
             prod_id = int(state.temp_data)
             p = session.query(Product).get(prod_id)
