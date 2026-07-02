@@ -67,6 +67,8 @@ def main():
                 user_id = message['from']['id']
                 photo = message.get('photo')
             elif callback:
+                # پاسخ به Callback برای توقف ساعت شنی بله (بسیار مهم)
+                bot.answer_callback_query(callback.get('id'))
                 chat_id = callback['message']['chat']['id']
                 text = callback.get('data', '')
                 user_id = callback['from']['id']
@@ -76,29 +78,21 @@ def main():
             print(f"📩 پیام از {chat_id}: {'عکس' if photo else text}")
 
             try:
-                # گرفتن وضعیت فعلی کاربر از دیتابیس
                 with Session() as s:
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
-                # ۱. دستورات سراسری
-                if text.startswith('/start'):
-                    parts = text.split()
-                    deep_link = parts[1] if len(parts) > 1 else None
-                    start_bot(chat_id, deep_link)
-                elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
-                    reset_state_to_main(chat_id)
-                    
-                # ۲. دکمه‌های منوی اصلی مشتری (با پشتیبانی از حالت با/بدون ایموجی و ریست State)
-                elif text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    # ریست کردن امن وضعیت کاربر برای جلوگیری از گیر کردن در State قبلی
-                    with Session() as s:
-                        state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
-                        # اگر در حال ثبت شماره یا آدرس نیست، وضعیتش را به منوی اصلی برمی‌گردانیم
-                        if state_obj and state_obj.state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
-                            state_obj.state = 'main'
-                            state_obj.temp_data = None
-                            s.commit()
+                # ۱. اولویت اول: دکمه‌های منوی اصلی (برای حل باگ ۱)
+                # این دکمه‌ها قبل از State ها چک می‌شوند تا همیشه جواب بدهند
+                if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
+                    # ریست کردن امن State کاربر
+                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
+                        with Session() as s:
+                            state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
+                            if state_obj:
+                                state_obj.state = 'main'
+                                state_obj.temp_data = None
+                                s.commit()
                     show_cart(chat_id, user_id)
                     
                 elif text in ["🛒 مشاهده محصولات", "مشاهده محصولات"]:
@@ -106,6 +100,14 @@ def main():
                     
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
                     bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
+
+                # ۲. دستورات سراسری
+                elif text.startswith('/start'):
+                    parts = text.split()
+                    deep_link = parts[1] if len(parts) > 1 else None
+                    start_bot(chat_id, deep_link)
+                elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
+                    reset_state_to_main(chat_id)
                     
                 # ۳. دکمه‌های شیشه‌ای (Callback ها)
                 elif text.startswith('add_'):
@@ -134,14 +136,10 @@ def main():
                 elif text.startswith('edits_'):
                     prod_id = int(text.replace('edits_', ''))
                     start_edit_stock(chat_id, prod_id)
-                
-                # بخش جدید: ویرایش نام محصول
-                elif text.startswith('en_'):
-                    prod_id = int(text.replace('en_', ''))
+                elif text.startswith('editn_'): # مسیر ویرایش نام
+                    prod_id = int(text.replace('editn_', ''))
                     start_edit_name(chat_id, prod_id)
-                
-                # بخش جدید: دکمه انصراف از ویرایش
-                elif text == 'cancel_edit':
+                elif text == 'cancel_edit': # مسیر انصراف
                     with Session() as s:
                         state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                         if state_obj:
@@ -149,14 +147,13 @@ def main():
                             state_obj.temp_data = None
                             s.commit()
                     bot.send_message(chat_id, "عملیات ویرایش لغو شد.", vendor_keyboard())
-
                 elif text.startswith('accept_'):
                     order_id = int(text.replace('accept_', ''))
                     accept_order(chat_id, order_id)
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                # ۴. مدیریت پنل‌ها (ادمین، مغازه‌دار، مشتری)
+                # ۴. مدیریت پنل‌ها (پس از بررسی دکمه‌های ثابت)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
@@ -168,6 +165,3 @@ def main():
                 print(f"⚠️ خطا در پردازش: {e}")
                 
         time.sleep(0.5)
-
-if __name__ == '__main__':
-    main()

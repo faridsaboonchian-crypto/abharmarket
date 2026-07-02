@@ -28,3 +28,11 @@ class BotAPI:
             session.post(self.base_url + "sendPhoto", data=payload, timeout=10)
         except Exception as e:
             print(f"API Photo Error: {e}")
+    def answer_callback_query(self, callback_id, text=None):
+        payload = {'callback_query_id': callback_id}
+        if text:
+            payload['text'] = text
+        try:
+            session.post(self.base_url + "answerCallbackQuery", data=payload, timeout=10)
+        except Exception as e:
+            print(f"API Error answering callback: {e}")
