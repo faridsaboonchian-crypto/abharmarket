@@ -1,3 +1,4 @@
+# main.py
 import logging
 import requests
 import time
@@ -5,6 +6,7 @@ import os
 from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
+                      remove_cart_item, clear_cart,
                       start_vendor_panel, process_vendor_step, list_vendor_products, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order,
@@ -12,14 +14,9 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       process_admin_step, reset_state_to_main, vendor_keyboard, bot)
 from config import BOT_TOKEN
 
-# تنظیم سیستم لاگ‌گیری برای چاپ خطاها در ترمینال
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# تنظیم سشن بدون استفاده از پروکسی سیستم (فیلترشکن)
 session = requests.Session()
 session.trust_env = False
 
@@ -44,8 +41,7 @@ def get_updates(offset):
         if res.status_code == 200:
             data = res.json()
             if data.get('ok'): return data.get('result', [])
-    except:
-        pass
+    except: pass
     return []
 
 def main():
@@ -74,23 +70,18 @@ def main():
                 user_id = message['from']['id']
                 photo = message.get('photo')
             elif callback:
-                # پاسخ به Callback برای توقف ساعت شنی بله
-                try:
-                    bot.answer_callback_query(callback.get('id'))
-                except Exception as e:
-                    logger.error(f"Error answering callback: {e}")
+                try: bot.answer_callback_query(callback.get('id'))
+                except Exception as e: logger.error(f"Error answering callback: {e}")
                 chat_id = callback['message']['chat']['id']
                 text = callback.get('data', '')
                 user_id = callback['from']['id']
-            else:
-                continue
+            else: continue
 
             try:
                 with Session() as s:
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
-                # ۱. اولویت اول: دکمه‌های منوی اصلی (برای حل باگ سبد خرید)
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
                     if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address']:
                         with Session() as s:
@@ -103,24 +94,25 @@ def main():
                     
                 elif text in ["🛒 مشاهده محصولات", "مشاهده محصولات"]:
                     show_shops_menu(chat_id)
-                    
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
-                    bot.send_message(chat_id, "برای پشتیبانی با شماره 09375894000... تماس بگیرید.")
-
-                # ۲. دستورات سراسری
+                    bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
                 elif text.startswith('/start'):
                     parts = text.split()
                     deep_link = parts[1] if len(parts) > 1 else None
                     start_bot(chat_id, deep_link)
                 elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
                     reset_state_to_main(chat_id)
-                elif text == '/vendor':  # <--- این خط اضافه شد تا مشکل عدم واکنش به وندور حل شود
+                elif text == '/vendor':
                     start_vendor_panel(chat_id)
                     
-                # ۳. دکمه‌های شیشه‌ای (Callback ها)
                 elif text.startswith('add_'):
                     prod_id = int(text.replace('add_', ''))
                     add_to_cart(chat_id, user_id, prod_id)
+                elif text.startswith('rmcart_'):
+                    cart_id = int(text.replace('rmcart_', ''))
+                    remove_cart_item(chat_id, user_id, cart_id)
+                elif text == 'clearcart':
+                    clear_cart(chat_id, user_id)
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
@@ -161,7 +153,6 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                # ۴. مدیریت پنل‌ها (پس از بررسی دکمه‌های ثابت)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
