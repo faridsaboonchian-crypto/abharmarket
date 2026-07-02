@@ -79,6 +79,7 @@ def main():
                     state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                     current_state = state_obj.state if state_obj else 'main'
 
+                # ۱. دستورات سراسری
                 if text.startswith('/start'):
                     parts = text.split()
                     deep_link = parts[1] if len(parts) > 1 else None
@@ -86,15 +87,7 @@ def main():
                 elif text == '🔙 بازگشت' or text == '🔙 بازگشت به منوی مشتری':
                     reset_state_to_main(chat_id)
                     
-                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
-                    process_admin_step(chat_id, text)
-                    
-                elif current_state.startswith('vendor'):
-                    process_vendor_step(chat_id, text, photo)
-                    
-                elif current_state.startswith('waiting'):
-                    process_checkout_step(chat_id, user_id, text)
-                    
+                # ۲. دکمه‌های شیشه‌ای (این بخش را بالاتر از سایر بخش‌ها آوردیم تا گیر نیفتند)
                 elif text.startswith('add_'):
                     prod_id = int(text.replace('add_', ''))
                     add_to_cart(chat_id, user_id, prod_id)
@@ -112,8 +105,6 @@ def main():
                 elif text.startswith('delvp_'):
                     prod_id = int(text.replace('delvp_', ''))
                     delete_vendor_product(chat_id, prod_id)
-                
-                # مسیرهای جدید برای ویرایش و تایید سفارش
                 elif text.startswith('editvp_'):
                     prod_id = int(text.replace('editvp_', ''))
                     show_edit_product_menu(chat_id, prod_id)
@@ -126,10 +117,18 @@ def main():
                 elif text.startswith('accept_'):
                     order_id = int(text.replace('accept_', ''))
                     accept_order(chat_id, order_id)
-                    
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
+                # ۳. مدیریت پنل‌ها (بعد از دکمه‌های شیشه‌ای)
+                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
+                    process_admin_step(chat_id, text)
+                elif current_state.startswith('vendor'):
+                    process_vendor_step(chat_id, text, photo)
+                elif current_state.startswith('waiting'):
+                    process_checkout_step(chat_id, user_id, text)
+                        
+                # ۴. منوی اصلی مشتری
                 elif current_state == 'main':
                     if text == '/vendor': start_vendor_panel(chat_id)
                     elif text == "🛒 مشاهده محصولات": show_shops_menu(chat_id)
