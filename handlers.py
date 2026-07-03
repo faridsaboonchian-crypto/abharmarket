@@ -192,11 +192,13 @@ def show_shop_products(chat_id, shop_id):
             if cat not in categories: categories.append(cat)
         buttons = []
         for cat in categories:
-            buttons.append([{"text": f"🏷 {cat}", "callback_data": f"catshop_{shop_id}_{cat}"}])
+            # استفاده از پیشوند c_ برای صفحه‌بندی و شروع از صفحه 1
+            buttons.append([{"text": f"🏷 {cat}", "callback_data": f"c_{shop_id}_{cat}_1"}])
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:", keyboard)
 
-def show_category_products(chat_id, shop_id, category):
+def show_category_products(chat_id, shop_id, category, page=1):
+    items_per_page = 5
     with Session() as session:
         if category == "سایر":
             products = session.query(Product).filter(
@@ -210,8 +212,14 @@ def show_category_products(chat_id, shop_id, category):
             bot.send_message(chat_id, "محصولی در این دسته یافت نشد.")
             return
             
-        bot.send_message(chat_id, f"🛍️ دسته‌بندی: {category}")
-        for p in products:
+        total_items = len(products)
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        current_products = products[start_idx:end_idx]
+        
+        bot.send_message(chat_id, f"🛍️ دسته‌بندی: {category} (صفحه {page})")
+        
+        for p in current_products:
             text = f"📦 {p.name}\n💰 قیمت: {format_price(p.price)} تومان\nموجودی: {p.stock} عدد"
             if p.description and p.description not in ['None', 'empty_desc']:
                 text += f"\n📝 توضیحات: {p.description}"
@@ -225,6 +233,17 @@ def show_category_products(chat_id, shop_id, category):
             else:
                 bot.send_message(chat_id, text, keyboard)
                 time.sleep(0.2)
+                
+        # ساخت دکمه‌های صفحه‌بندی (قبلی/بعدی)
+        pagination_buttons = []
+        if page > 1:
+            pagination_buttons.append({"text": "⬅️ صفحه قبل", "callback_data": f"c_{shop_id}_{category}_{page-1}"})
+        if end_idx < total_items:
+            pagination_buttons.append({"text": "➡️ صفحه بعد", "callback_data": f"c_{shop_id}_{category}_{page+1}"})
+            
+        if pagination_buttons:
+            keyboard = {"inline_keyboard": [pagination_buttons]}
+            bot.send_message(chat_id, "برای مشاهده محصولات بیشتر، از دکمه زیر استفاده کنید:", keyboard)
 
 def add_to_cart(chat_id, user_id, product_id):
     with Session() as session:

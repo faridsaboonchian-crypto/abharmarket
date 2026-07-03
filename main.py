@@ -97,7 +97,7 @@ def main():
                 elif text in ["🛒 مشاهده محصولات", "مشاهده محصولات"]:
                     show_shops_menu(chat_id)
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
-                    bot.send_message(chat_id, "برای پشتیبانی با شماره 09375894000... تماس بگیرید.")
+                    bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
                     
                 # ۲. دستورات سراسری
                 elif text.startswith('/start'):
@@ -121,11 +121,13 @@ def main():
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
-                elif text.startswith('catshop_'):
-                    parts = text.split('_', 2)
+                elif text.startswith('c_'):  # مسیر جدید صفحه‌بندی دسته‌بندی‌ها
+                    # فرمت: c_{shop_id}_{category}_{page}
+                    parts = text.split('_')
                     shop_id = int(parts[1])
-                    category = parts[2]
-                    show_category_products(chat_id, shop_id, category)
+                    page = int(parts[-1])
+                    category = '_'.join(parts[2:-1])
+                    show_category_products(chat_id, shop_id, category, page)
                 elif text.startswith('dels_'):
                     shop_id = int(text.replace('dels_', ''))
                     delete_shop(chat_id, shop_id)
@@ -164,7 +166,7 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
@@ -173,8 +175,7 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                 elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
-                # بخش جدید: اگر مشتری در حالت عادی عکس فرستاد، آن را به عنوان رسید پرداخت در نظر بگیر
-                elif photo and current_state == 'main':
+                elif photo and current_state == 'main':  # هندل عکس رسید مشتری
                     handle_customer_photo(chat_id, user_id, photo)
                     
             except Exception as e:
