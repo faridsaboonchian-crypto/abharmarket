@@ -362,6 +362,10 @@ def process_checkout_step(chat_id, user_id, text):
         if not state: return
 
         if state.state == 'waiting_phone':
+            # اعتبارسنجی شماره تلفن (حداکثر 15 کاراکتر و فقط عدد)
+            if not text.isdigit() or len(text) > 15 or len(text) < 4:
+                bot.send_message(chat_id, "⚠️ شماره نامعتبر است. لطفاً فقط عدد (بدون فاصله) وارد کنید:")
+                return
             state.temp_data = f"phone|||{text}"
             state.state = 'waiting_address'
             session.commit()
@@ -369,6 +373,10 @@ def process_checkout_step(chat_id, user_id, text):
             return
 
         elif state.state == 'waiting_address':
+            # اعتبارسنجی آدرس (حداکثر 300 کاراکتر)
+            if len(text) > 300:
+                bot.send_message(chat_id, "⚠️ آدرس شما بسیار طولانی است! لطفاً آدرس را به صورت خلاصه‌تر (کمتر از ۳۰۰ کاراکتر) وارد کنید:")
+                return
             data_str = state.temp_data + f"|||address|||{text}"
             data_dict = {}
             parts = data_str.split("|||")
@@ -422,6 +430,126 @@ def process_checkout_step(chat_id, user_id, text):
             admin_msg = f"🔔 سفارش جدید در سیستم!\n\nکد: {new_order.id}\n📞 شماره: {new_order.phone}\n📍 آدرس: {new_order.address}\n\n📦 **کل اقلام:**\n{items_text_customer}\n💰 مبلغ کل: {format_price(total_price)} تومان"
             try: bot.send_message(ADMIN_ID, admin_msg)
             except: pass
+            return
+
+def process_vendor_step(chat_id, text, photo=None):
+    text = convert_to_english_digits(text)
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state: return
+
+        if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
+            state.state = 'vendor_name'; session.commit()
+            bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:"); return
+
+        if text == '📦 مدیریت محصولات' and state.state == 'vendor_menu':
+            list_vendor_products(chat_id); return
+
+        if state.state == 'vendor_edit_name':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.name = text; session.commit()
+                bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        if state.state == 'vendor_edit_price':
+            if not text.isdigit() or len(text) > 12:
+                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد و معقول باشد. دوباره وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.price = float(text); session.commit()
+                bot.send_message(chat_id, "✅ قیمت با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        elif state.state == 'vendor_edit_stock':
+            if not text.isdigit() or len(text) > 6:
+                bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.stock = int(text); session.commit()
+                bot.send_message(chat_id, "✅ موجودی با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        if state.state == 'vendor_name':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر تایپ کنید:"); return
+            state.temp_data = f"name:{text}"; state.state = 'vendor_price'; session.commit()
+            bot.send_message(chat_id, "۲. **قیمت** را به تومان وارد کنید (فقط عدد):"); return
+
+        elif state.state == 'vendor_price':
+            if not text.isdigit() or len(text) > 12:
+                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد:"); return
+            state.temp_data += f"|price:{text}"; state.state = 'vendor_stock'; session.commit()
+            bot.send_message(chat_id, "۳. **موجودی** را وارد کنید (فقط عدد):"); return
+
+        elif state.state == 'vendor_stock':
+            if not text.isdigit() or len(text) > 6:
+                bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:"); return
+            state.temp_data += f"|stock:{text}"; state.state = 'vendor_cat'; session.commit()
+            bot.send_message(chat_id, "۴. **دسته‌بندی محصول** را وارد کنید (مثلاً: روغن، برنج، شوینده):"); return
+
+        elif state.state == 'vendor_cat':
+            if is_button(text) or text == 'ندارد' or len(text) > 50:
+                bot.send_message(chat_id, "⚠️ دسته‌بندی نامعتبر است. لطفاً کوتاه و معتبر وارد کنید:"); return
+            state.temp_data += f"|cat:{text}"; state.state = 'vendor_desc'; session.commit()
+            bot.send_message(chat_id, "۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
+
+        elif state.state == 'vendor_desc':
+            if len(text) > 500:
+                bot.send_message(chat_id, "⚠️ توضیحات بسیار طولانی است. لطفاً کمتر از ۵۰۰ کاراکتر بنویسید:"); return
+            desc_text = text if text != 'ندارد' else 'empty_desc'
+            state.temp_data += f"|desc:{desc_text}"; state.state = 'vendor_photo'; session.commit()
+            bot.send_message(chat_id, "۶. عکس محصول را ارسال کنید."); return
+
+        elif state.state == 'vendor_photo':
+            if not photo:
+                bot.send_message(chat_id, "⚠️ لطفاً یک عکس ارسال کنید."); return
+            file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
+            data_str = state.temp_data
+            data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
+            
+            shops = session.query(Shop).all()
+            shop = None
+            for s in shops:
+                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                    shop = s
+                    break
+
+            final_desc = data_dict.get("desc")
+            if final_desc == 'empty_desc': final_desc = None
+
+            new_product = Product(
+                name=data_dict.get("name"),
+                price=float(data_dict.get("price")),
+                stock=int(data_dict.get("stock")),
+                category=data_dict.get("cat"),
+                description=final_desc,
+                image_file_id=file_id,
+                shop_id=shop.id
+            )
+            session.add(new_product)
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit()
+            bot.send_message(chat_id, f"✅ محصول '{new_product.name}' ثبت شد!", vendor_keyboard())
             return
 
 def start_vendor_panel(chat_id):
@@ -644,120 +772,3 @@ def handle_customer_photo(chat_id, user_id, photo):
             print(f"Error forwarding photo to vendor: {e}")
             bot.send_message(chat_id, "⚠️ خطا در ارسال رسید به فروشنده. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.")
 
-def process_vendor_step(chat_id, text, photo=None):
-    text = convert_to_english_digits(text)
-    with Session() as session:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state: return
-
-        if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
-            state.state = 'vendor_name'; session.commit()
-            bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:"); return
-
-        if text == '📦 مدیریت محصولات' and state.state == 'vendor_menu':
-            list_vendor_products(chat_id); return
-
-        if state.state == 'vendor_edit_name':
-            if is_button(text) or not text or len(text) < 2:
-                bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر (حداقل ۲ حرف) تایپ کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.name = text; session.commit()
-                bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        if state.state == 'vendor_edit_price':
-            if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد. دوباره وارد کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.price = float(text); session.commit()
-                bot.send_message(chat_id, "✅ قیمت با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        elif state.state == 'vendor_edit_stock':
-            if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.stock = int(text); session.commit()
-                bot.send_message(chat_id, "✅ موجودی با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        if state.state == 'vendor_name':
-            if is_button(text):
-                bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر تایپ کنید:"); return
-            state.temp_data = f"name:{text}"; state.state = 'vendor_price'; session.commit()
-            bot.send_message(chat_id, "۲. **قیمت** را به تومان وارد کنید (فقط عدد):"); return
-
-        elif state.state == 'vendor_price':
-            if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ قیمت باید عدد باشد:"); return
-            state.temp_data += f"|price:{text}"; state.state = 'vendor_stock'; session.commit()
-            bot.send_message(chat_id, "۳. **موجودی** را وارد کنید (فقط عدد):"); return
-
-        elif state.state == 'vendor_stock':
-            if not text.isdigit():
-                bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:"); return
-            state.temp_data += f"|stock:{text}"; state.state = 'vendor_cat'; session.commit()
-            bot.send_message(chat_id, "۴. **دسته‌بندی محصول** را وارد کنید (مثلاً: روغن، برنج، شوینده):"); return
-
-        elif state.state == 'vendor_cat':
-            if is_button(text) or text == 'ندارد':
-                bot.send_message(chat_id, "⚠️ لطفاً دسته‌بندی معتبر وارد کنید (مثلاً روغن):"); return
-            state.temp_data += f"|cat:{text}"; state.state = 'vendor_desc'; session.commit()
-            bot.send_message(chat_id, "۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
-
-        elif state.state == 'vendor_desc':
-            desc_text = text if text != 'ندارد' else 'empty_desc'
-            state.temp_data += f"|desc:{desc_text}"; state.state = 'vendor_photo'; session.commit()
-            bot.send_message(chat_id, "۶. عکس محصول را ارسال کنید."); return
-
-        elif state.state == 'vendor_photo':
-            if not photo:
-                bot.send_message(chat_id, "⚠️ لطفاً یک عکس ارسال کنید."); return
-            file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
-            data_str = state.temp_data
-            data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
-            
-            shops = session.query(Shop).all()
-            shop = None
-            for s in shops:
-                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
-                    shop = s
-                    break
-
-            final_desc = data_dict.get("desc")
-            if final_desc == 'empty_desc': final_desc = None
-
-            new_product = Product(
-                name=data_dict.get("name"),
-                price=float(data_dict.get("price")),
-                stock=int(data_dict.get("stock")),
-                category=data_dict.get("cat"),
-                description=final_desc,
-                image_file_id=file_id,
-                shop_id=shop.id
-            )
-            session.add(new_product)
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit()
-            bot.send_message(chat_id, f"✅ محصول '{new_product.name}' ثبت شد!", vendor_keyboard())
-            return
