@@ -234,16 +234,19 @@ def show_category_products(chat_id, shop_id, category, page=1):
                 bot.send_message(chat_id, text, keyboard)
                 time.sleep(0.2)
                 
-        # ساخت دکمه‌های صفحه‌بندی (قبلی/بعدی)
+        # ساخت دکمه‌های صفحه‌بندی و بازگشت به دسته‌بندی‌ها
         pagination_buttons = []
         if page > 1:
             pagination_buttons.append({"text": "⬅️ صفحه قبل", "callback_data": f"c_{shop_id}_{category}_{page-1}"})
+        
+        # دکمه بازگشت به منوی دسته‌بندی‌ها برای جلوگیری از اسکرول
+        pagination_buttons.append({"text": "🔙 دسته‌بندی‌ها", "callback_data": f"shop_{shop_id}"})
+        
         if end_idx < total_items:
-            pagination_buttons.append({"text": "➡️ صفحه بعد", "callback_data": f"c_{shop_id}_{category}_{page+1}"})
+            pagination_buttons.append({"text": "صفحه بعد ➡️", "callback_data": f"c_{shop_id}_{category}_{page+1}"})
             
-        if pagination_buttons:
-            keyboard = {"inline_keyboard": [pagination_buttons]}
-            bot.send_message(chat_id, "برای مشاهده محصولات بیشتر، از دکمه زیر استفاده کنید:", keyboard)
+        keyboard = {"inline_keyboard": [pagination_buttons]}
+        bot.send_message(chat_id, "برای مشاهده ادامه محصولات یا تغییر دسته، از دکمه‌های زیر استفاده کنید:", keyboard)
 
 def add_to_cart(chat_id, user_id, product_id):
     with Session() as session:
@@ -457,9 +460,49 @@ def list_vendor_products(chat_id):
             bot.send_message(chat_id, "شما هنوز محصولی ثبت نکرده‌اید.")
             return
             
+        # استخراج دسته‌بندی‌های یکتا
+        categories = []
+        for p in products:
+            cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
+            if cat not in categories: categories.append(cat)
+            
+        buttons = []
+        for cat in categories:
+            buttons.append([{"text": f"🏷 {cat}", "callback_data": f"vcat_{cat}"}])
+        
+        keyboard = {"inline_keyboard": buttons}
+        bot.send_message(chat_id, "لطفاً دسته‌بندی مورد نظر خود را برای مدیریت محصولات انتخاب کنید:", keyboard)
+
+# تابع جدید برای نمایش محصولات یک دسته خاص جهت ویرایش
+def list_vendor_products_by_cat(chat_id, category):
+    with Session() as session:
+        shops = session.query(Shop).filter_by(is_active=True).all()
+        shop = None
+        for s in shops:
+            if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                shop = s
+                break
+        if not shop: return
+        
+        if category == "سایر":
+            products = session.query(Product).filter(
+                Product.shop_id == shop.id,
+                (Product.category == None) | (Product.category == 'None') | (Product.category == 'empty_desc') | (Product.category == 'سایر')
+            ).all()
+        else:
+            products = session.query(Product).filter_by(shop_id=shop.id, category=category).all()
+
+        if not products:
+            bot.send_message(chat_id, "محصولی در این دسته یافت نشد.")
+            return
+            
         buttons = []
         for p in products:
             buttons.append([{"text": f"📦 {p.name} (قیمت: {format_price(p.price)} - موجودی: {p.stock})", "callback_data": f"editvp_{p.id}"}])
+        
+        # دکمه بازگشت به دسته‌بندی‌ها
+        buttons.append([{"text": "🔙 بازگشت به دسته‌بندی‌ها", "callback_data": "manage_cats"}])
+        
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, "لطفاً محصولی که می‌خواهید ویرایش یا حذف کنید را انتخاب کنید:", keyboard)
 

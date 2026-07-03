@@ -7,7 +7,7 @@ from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
                       remove_cart_item, clear_cart, process_quantity_step, handle_customer_photo,
-                      start_vendor_panel, process_vendor_step, list_vendor_products, 
+                      start_vendor_panel, process_vendor_step, list_vendor_products, list_vendor_products_by_cat, # <-- این اضافه شد
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
                       handle_payment_online, handle_payment_cod,
@@ -121,8 +121,7 @@ def main():
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
-                elif text.startswith('c_'):  # مسیر جدید صفحه‌بندی دسته‌بندی‌ها
-                    # فرمت: c_{shop_id}_{category}_{page}
+                elif text.startswith('c_'):
                     parts = text.split('_')
                     shop_id = int(parts[1])
                     page = int(parts[-1])
@@ -146,6 +145,15 @@ def main():
                 elif text.startswith('editn_'):
                     prod_id = int(text.replace('editn_', ''))
                     start_edit_name(chat_id, prod_id)
+                
+                # --- بخش‌های جدید اضافه شده ---
+                elif text.startswith('vcat_'):
+                    category = text.replace('vcat_', '', 1)
+                    list_vendor_products_by_cat(chat_id, category)
+                elif text == 'manage_cats':
+                    list_vendor_products(chat_id)
+                # --------------------------------
+                
                 elif text == 'cancel_edit':
                     with Session() as s:
                         state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
@@ -175,7 +183,7 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                 elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
-                elif photo and current_state == 'main':  # هندل عکس رسید مشتری
+                elif photo and current_state == 'main':
                     handle_customer_photo(chat_id, user_id, photo)
                     
             except Exception as e:
