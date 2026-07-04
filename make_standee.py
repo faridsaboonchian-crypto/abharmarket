@@ -64,5 +64,5 @@ def make_shop_standee(shop_id, shop_name, bot_username):
 # پارامتر سوم: آیدی ربات در بله (AbharMarket_bot یا TehranMarket_bot)
 # ==========================================
 
-make_shop_standee(1, "فروشگاه جانبو شعبه ولیعصر", "TehranMarket_bot")
+make_shop_standee(2, "فروشگاه دیلی مارکت شعبه طالقانی شمالی", "AbharMarket_bot")
 # make_shop_standee(1, "فروشگاه رفاه ابهر", "AbharMarket_bot")
