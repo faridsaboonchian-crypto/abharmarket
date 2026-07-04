@@ -253,6 +253,16 @@ def process_customer_search(chat_id, user_id, text):
                 bot.send_message(chat_id, prod_text, keyboard)
                 time.sleep(0.2)
         
+        # ---------------- بخش جدید: دکمه بازگشت به لیست محصولات ----------------
+        # استفاده از کال‌بک shop_{shop_id} که قبلا در main.py تعریف شده تا لیست دسته‌بندی‌ها بیاید
+        back_keyboard = {
+            "inline_keyboard": [
+                [{"text": "🔙 بازگشت به لیست محصولات", "callback_data": f"shop_{shop_id}"}]
+            ]
+        }
+        bot.send_message(chat_id, "اگر محصول مورد نظر شما در لیست بالا نبود، می‌توانید به لیست دسته‌بندی‌ها برگردید:", back_keyboard)
+        # --------------------------------------------------------------------
+        
         # ریست کردن State به منوی اصلی
         state.state = 'main'
         state.temp_data = None
