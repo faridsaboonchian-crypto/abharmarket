@@ -164,6 +164,31 @@ def process_admin_step(chat_id, text):
         elif text == '🏪 لیست فروشگاه‌ها': list_shops(chat_id); return
         elif text == '🗑 حذف فروشگاه': list_shops_for_delete(chat_id); return
         elif text == '✏️ ویرایش نام فروشگاه': list_shops_for_edit(chat_id); return
+        elif text == '🖼 تنظیم بنر تبلیغاتی': start_set_banner(chat_id); return
+        elif text == '📢 ارسال پیام همگانی': start_broadcast(chat_id); return
+
+        # بخش مدیریت بنر تبلیغاتی
+        if state.state == 'admin_set_banner':
+            if text == 'حذف':
+                if os.path.exists('banner.txt'): os.remove('banner.txt')
+                bot.send_message(chat_id, "✅ بنر تبلیغاتی حذف شد.", admin_keyboard())
+            else:
+                with open('banner.txt', 'w', encoding='utf-8') as f:
+                    f.write(text)
+                bot.send_message(chat_id, "✅ بنر تبلیغاتی با موفقیت تنظیم شد.", admin_keyboard())
+            state.state = 'main'; state.temp_data = None; session.commit()
+            return
+
+        # بخش مدیریت پیام همگانی
+        if state.state == 'admin_broadcast_msg':
+            if not text or len(text) > 1000:
+                bot.send_message(chat_id, "⚠️ متن نامعتبر است. (حداکثر ۱۰۰۰ کاراکتر)")
+                return
+            bot.send_message(chat_id, "⏳ شروع ارسال پیام همگانی در پس‌زمینه...")
+            state.state = 'main'; session.commit()
+            thread = threading.Thread(target=broadcast_worker, args=(text,))
+            thread.start()
+            return
 
         if state.state == 'admin_edit_shop_name':
             if is_button(text) or not text or len(text) < 2 or len(text) > 100:
@@ -176,9 +201,8 @@ def process_admin_step(chat_id, text):
 
             shop = session.query(Shop).get(shop_id)
             if shop:
-                shop.name = text
-                session.commit()
-                new_name = shop.name # استخراج نام داخل سشن
+                shop.name = text; session.commit()
+                new_name = shop.name
                 bot.send_message(chat_id, f"✅ نام فروشگاه با موفقیت به '{new_name}' تغییر یافت.", admin_keyboard())
             else: bot.send_message(chat_id, "⚠️ فروشگاه یافت نشد.")
             state.state = 'main'; state.temp_data = None; session.commit()
@@ -197,14 +221,38 @@ def process_admin_step(chat_id, text):
         if state.state == 'admin_shop_owner':
             if is_button(text):
                 bot.send_message(chat_id, "⚠️ لطفاً آیدی عددی معتبر وارد کنید:"); return
+            state.temp_data += f"|owner:{text}"; state.state = 'admin_shop_card'; session.commit()
+            bot.send_message(chat_id, "۳. لطفاً **شماره کارت بانکی فروشگاه** را وارد کنید (۱۶ رقم پشت کارت، بدون خط تیره):\n(اگر کارت ندارد، بنویسید 'ندارد')"); return
+
+        if state.state == 'admin_shop_card':
+            if is_button(text):
+                bot.send_message(chat_id, "⚠️ لطفاً شماره کارت معتبر وارد کنید:"); return
+            state.temp_data += f"|card:{text}"; state.state = 'admin_shop_holder'; session.commit()
+            bot.send_message(chat_id, "۴. لطفاً **نام و نام خانوادگی صاحب حساب** را وارد کنید:\n(اگر کارت ندارد، بنویسید 'ندارد')"); return
+
+        if state.state == 'admin_shop_holder':
+            if is_button(text):
+                bot.send_message(chat_id, "⚠️ لطفاً نام معتبر وارد کنید:"); return
             try:
-                shop_name = state.temp_data.split(":", 1)[1]
-                new_shop = Shop(name=shop_name, owner_chat_id=text, is_active=True)
+                data_str = state.temp_data + f"|holder:{text}"
+                data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
+                
+                shop_name = data_dict.get("name")
+                owner_id = data_dict.get("owner")
+                card_num = data_dict.get("card")
+                card_hld = data_dict.get("holder")
+                
+                if card_num == 'ندارد': card_num = None
+                if card_hld == 'ندارد': card_hld = None
+
+                new_shop = Shop(name=shop_name, owner_chat_id=owner_id, is_active=True, card_number=card_num, card_holder=card_hld)
                 session.add(new_shop); state.state = 'main'; state.temp_data = None; session.commit()
                 bot.send_message(chat_id, f"✅ فروشگاه '{new_shop.name}' ثبت شد!", admin_keyboard())
             except IntegrityError:
                 session.rollback()
                 bot.send_message(chat_id, "⚠️ این آیدی قبلاً ثبت شده است!", admin_keyboard())
+            except Exception as e:
+                print(f"Error creating shop: {e}")
             return
 
 def show_shops_menu(chat_id):
@@ -500,7 +548,10 @@ def process_checkout_step(chat_id, user_id, text):
                 shop_orders[p.shop_id]["items_text"] += f"▫️ {p.name} ({item.quantity} عدد) - {format_price(item_total)} تومان\n"
                 shop_orders[p.shop_id]["total"] += item_total
 
-            new_order = Order(customer_id=str(user_id), phone=phone, address=address, total_price=total_price)
+            # دریافت شناسه اولین فروشگاه برای ذخیره در سفارش (جهت مسیردهی کارت بانکی)
+            first_shop_id = list(shop_orders.keys())[0] if shop_orders else 1
+
+            new_order = Order(shop_id=first_shop_id, customer_id=str(user_id), phone=phone, address=address, total_price=total_price)
             session.add(new_order)
             session.flush()
 
@@ -717,14 +768,24 @@ def handle_payment_online(chat_id, order_id):
         order = session.query(Order).get(order_id)
         if not order: return
         
-        customer_msg = "شما گزینه پرداخت آنلاین را انتخاب کردید.\n\nلطفاً مبلغ سفارش را به کارت زیر واریز کنید:\n💳 ۶۱۰۴-۳۳۷۵-xxxx-xxxx\nبه نام: فروشنده تست\n\nپس از واریز، عکس رسید را به همین چت ارسال کنید تا سفارش شما نهایی شود."
-        bot.send_message(chat_id, customer_msg)
-        
         shop = session.query(Shop).get(order.shop_id) if order.shop_id else None
-        if shop:
-            vendor_msg = f"🔔 مشتری (کد سفارش {order.id}) گزینه 'پرداخت آنلاین' را انتخاب کرد.\nلطفاً منتظر ارسال عکس رسید کارت به کارت توسط مشتری باشید."
-            try: bot.send_message(shop.owner_chat_id, vendor_msg)
-            except: pass
+        
+        # اگر فروشگاه کارت بانکی had، به مشتری نشان می‌دهیم
+        if shop and shop.card_number and shop.card_holder:
+            customer_msg = "شما گزینه پرداخت آنلاین را انتخاب کردید.\n\n"
+            customer_msg += f"لطفاً مبلغ {format_price(order.total_price)} تومان را به کارت زیر واریز کنید:\n"
+            customer_msg += f"💳 {shop.card_number}\n"
+            customer_msg += f"به نام: {shop.card_holder}\n\n"
+            customer_msg += "پس از واریز، عکس رسید را به همین چت ارسال کنید تا سفارش شما نهایی شود."
+            bot.send_message(chat_id, customer_msg)
+            
+            if shop:
+                vendor_msg = f"🔔 مشتری (کد سفارش {order.id}) گزینه 'پرداخت آنلاین' را انتخاب کرد.\nلطفاً منتظر ارسال عکس رسید کارت به کارت توسط مشتری باشید."
+                try: bot.send_message(shop.owner_chat_id, vendor_msg)
+                except: pass
+        else:
+            # اگر فروشگاه کارت ثبت نکرده بود
+            bot.send_message(chat_id, "متاسفانه این فروشگاه در حال حاضر امکان پرداخت آنلاین (کارت به کارت) ندارد. لطفاً گزینه 'پرداخت درب منزل' را انتخاب کنید یا با پشتیبانی تماس بگیرید.")
 
 def handle_payment_cod(chat_id, order_id):
     with Session() as session:

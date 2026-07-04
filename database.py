@@ -11,6 +11,8 @@ class Shop(Base):
     name = Column(String)
     owner_chat_id = Column(String, unique=True)
     is_active = Column(Boolean, default=True)
+    card_number = Column(String, nullable=True)  # فیلد جدید: شماره کارت
+    card_holder = Column(String, nullable=True)  # فیلد جدید: نام صاحب حساب
 
 class Product(Base):
     __tablename__ = 'products'
