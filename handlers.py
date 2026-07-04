@@ -594,7 +594,7 @@ def handle_customer_photo(chat_id, user_id, photo):
 
         try:
             bot.send_photo(shop.owner_chat_id, file_id, caption)
-            bot.send_message(chat_id, "✅ رسید شما دریافت شد و برای فروشنده ارسال گردید.\nپس از تایید واریز وجه توسط فروشنده، سفارش شما ارسال خواهد شد. سپس از صبوری شما!")
+            bot.send_message(chat_id, "✅ رسید شما دریافت شد و برای فروشنده ارسال گردید.\nپس از تایید واریز وجه توسط فروشنده، سفارش شما ارسال خواهد شد. سپاس از صبوری شما!")
         except Exception as e:
             print(f"Error forwarding photo to vendor: {e}")
             bot.send_message(chat_id, "⚠️ خطا در ارسال رسید به فروشنده. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.")
