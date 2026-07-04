@@ -124,9 +124,12 @@ def list_shops_for_edit(chat_id):
 
 def start_edit_shop_name(chat_id, shop_id):
     if str(chat_id) != ADMIN_ID: return
+    shop_name = None
     with Session() as session:
         shop = session.query(Shop).get(shop_id)
         if not shop: return
+        shop_name = shop.name  # استخراج نام داخل سشن
+        
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
         if not state:
             state = UserState(chat_id=str(chat_id))
@@ -134,7 +137,8 @@ def start_edit_shop_name(chat_id, shop_id):
         state.state = 'admin_edit_shop_name'
         state.temp_data = str(shop_id)
         session.commit()
-    bot.send_message(chat_id, f"نام فعلی: {shop.name}\n\nلطفاً **نام جدید** فروشگاه را ارسال کنید:")
+        
+    bot.send_message(chat_id, f"نام فعلی: {shop_name}\n\nلطفاً **نام جدید** فروشگاه را ارسال کنید:")
 
 def delete_shop(chat_id, shop_id):
     if str(chat_id) != ADMIN_ID: return
@@ -172,8 +176,10 @@ def process_admin_step(chat_id, text):
 
             shop = session.query(Shop).get(shop_id)
             if shop:
-                shop.name = text; session.commit()
-                bot.send_message(chat_id, f"✅ نام فروشگاه با موفقیت به '{shop.name}' تغییر یافت.", admin_keyboard())
+                shop.name = text
+                session.commit()
+                new_name = shop.name # استخراج نام داخل سشن
+                bot.send_message(chat_id, f"✅ نام فروشگاه با موفقیت به '{new_name}' تغییر یافت.", admin_keyboard())
             else: bot.send_message(chat_id, "⚠️ فروشگاه یافت نشد.")
             state.state = 'main'; state.temp_data = None; session.commit()
             return
