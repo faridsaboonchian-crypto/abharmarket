@@ -18,11 +18,12 @@ def convert_to_english_digits(text):
         text = text.replace(ch, str(i))
     return text
 
-is_button
 
 def format_price(price):
     return f"{int(price):,}"
-
+def is_button(text):
+    buttons = ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
+    return text in buttons
 def main_keyboard():
     return {"keyboard": [["🛒 مشاهده محصولات"], ["🛍 سبد خرید", "👤 پشتیبانی"]], "resize_keyboard": True}
 
