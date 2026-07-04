@@ -191,11 +191,73 @@ def show_shop_products(chat_id, shop_id):
             cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
             if cat not in categories: categories.append(cat)
         buttons = []
+        # اضافه شدن دکمه جستجو در بالای لیست برای مشتری
+        buttons.append([{"text": "🔍 جستجوی محصول", "callback_data": f"csearch_{shop_id}"}])
         for cat in categories:
             # استفاده از پیشوند c_ برای صفحه‌بندی و شروع از صفحه 1
             buttons.append([{"text": f"🏷 {cat}", "callback_data": f"c_{shop_id}_{cat}_1"}])
         keyboard = {"inline_keyboard": buttons}
-        bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی مورد نظر خود را انتخاب کنید:", keyboard)
+        bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی را انتخاب کنید یا برای پیدا کردن سریع محصول، روی جستجو بزنید:", keyboard)
+
+def start_customer_search(chat_id, shop_id):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'customer_search_prod'
+        state.temp_data = str(shop_id)
+        session.commit()
+    bot.send_message(chat_id, "🔍 لطفاً **بخشی از نام محصول** که به دنبال آن هستید را ارسال کنید (مثلاً: روغن اویلا):")
+
+def process_customer_search(chat_id, user_id, text):
+    text = convert_to_english_digits(text)
+    # اعتبارسنجی متن جستجو
+    if not text or len(text) < 2 or len(text) > 50:
+        bot.send_message(chat_id, "⚠️ عبارت جستجو نامعتبر است. لطفاً بین ۲ تا ۵۰ کاراکتر وارد کنید:")
+        return
+
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state or not state.temp_data:
+            return
+        
+        shop_id = int(state.temp_data)
+        search_term = f"%{text}%"
+        
+        # محدود کردن به 10 نتیجه اول برای جلوگیری از اسپم و مسدودی ربات
+        products = session.query(Product).filter(
+            Product.shop_id == shop_id, 
+            Product.name.ilike(search_term)
+        ).limit(10).all()
+        
+        if not products:
+            bot.send_message(chat_id, "⚠️ محصولی با این نام در این فروشگاه یافت نشد. لطفاً کلمه دیگری را امتحان کنید:")
+            return
+
+        shop = session.query(Shop).get(shop_id)
+        bot.send_message(chat_id, f"✅ نتایج جستجو در '{shop.name}':")
+        
+        for p in products:
+            prod_text = f"📦 {p.name}\n💰 قیمت: {format_price(p.price)} تومان\nموجودی: {p.stock} عدد"
+            if p.description and p.description not in ['None', 'empty_desc']:
+                prod_text += f"\n📝 توضیحات: {p.description}"
+            keyboard = {"inline_keyboard": [[{"text": "➕ افزودن به سبد", "callback_data": f"add_{p.id}"}]]}
+            if p.image_file_id:
+                try:
+                    bot.send_photo(chat_id, p.image_file_id, prod_text, keyboard)
+                    time.sleep(0.5) 
+                except Exception as e:
+                    print(f"Error sending photo: {e}")
+            else:
+                bot.send_message(chat_id, prod_text, keyboard)
+                time.sleep(0.2)
+        
+        # ریست کردن State به منوی اصلی
+        state.state = 'main'
+        state.temp_data = None
+        session.commit()
+
 
 def show_category_products(chat_id, shop_id, category, page=1):
     items_per_page = 5
