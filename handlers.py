@@ -19,7 +19,7 @@ def convert_to_english_digits(text):
     return text
 
 def is_button(text):
-    buttons = ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
+    buttons = ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
     return text in buttons
 
 def format_price(price):
@@ -438,6 +438,46 @@ def process_vendor_step(chat_id, text, photo=None):
         state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
         if not state: return
 
+        # ---------------- بخش جدید: مدیریت جستجوی محصول ----------------
+        if state.state == 'vendor_search_prod':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 50:
+                bot.send_message(chat_id, "⚠️ عبارت جستجو نامعتبر است. لطفاً بین ۲ تا ۵۰ کاراکتر وارد کنید:")
+                return
+            
+            shops = session.query(Shop).filter_by(is_active=True).all()
+            shop = None
+            for s in shops:
+                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                    shop = s
+                    break
+            if not shop: return
+
+            # جستجوی سیلابیک در دیتابیس (ilike)
+            search_term = f"%{text}%"
+            products = session.query(Product).filter(
+                Product.shop_id == shop.id, 
+                Product.name.ilike(search_term)
+            ).all()
+            
+            if not products:
+                bot.send_message(chat_id, "⚠️ محصولی با این نام یافت نشد. لطفاً کلمه دیگری را امتحان کنید:")
+                return
+                
+            buttons = []
+            for p in products:
+                buttons.append([{"text": f"📦 {p.name} (قیمت: {format_price(p.price)} - موجودی: {p.stock})", "callback_data": f"editvp_{p.id}"}])
+            
+            buttons.append([{"text": "🔙 بازگشت به دسته‌بندی‌ها", "callback_data": "manage_cats"}])
+            keyboard = {"inline_keyboard": buttons}
+            bot.send_message(chat_id, f"✅ {len(products)} محصول یافت شد. لطفاً محصول مورد نظر را برای ویرایش انتخاب کنید:", keyboard)
+            
+            # ریست کردن State به منوی فروشندگی
+            state.state = 'vendor_menu'
+            state.temp_data = None
+            session.commit()
+            return
+        # ----------------------------------------------------------------
+
         if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
             state.state = 'vendor_name'; session.commit()
             bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:"); return
@@ -595,11 +635,24 @@ def list_vendor_products(chat_id):
             if cat not in categories: categories.append(cat)
             
         buttons = []
+        # اضافه شدن دکمه جستجو در بالای لیست
+        buttons.append([{"text": "🔍 جستجوی محصول", "callback_data": "search_prod"}])
+        
         for cat in categories:
             buttons.append([{"text": f"🏷 {cat}", "callback_data": f"vcat_{cat}"}])
         
         keyboard = {"inline_keyboard": buttons}
-        bot.send_message(chat_id, "لطفاً دسته‌بندی مورد نظر خود را برای مدیریت محصولات انتخاب کنید:", keyboard)
+        bot.send_message(chat_id, "لطفاً دسته‌بندی را انتخاب کنید یا برای پیدا کردن سریع محصول، روی جستجو بزنید:", keyboard)
+
+def start_search_product(chat_id):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'vendor_search_prod'
+        session.commit()
+    bot.send_message(chat_id, "🔍 لطفاً **بخشی از نام محصول** مورد نظر خود را ارسال کنید:\n(مثلاً بنویسید: خوشپخت)")
 
 # تابع جدید برای نمایش محصولات یک دسته خاص جهت ویرایش
 def list_vendor_products_by_cat(chat_id, category):

@@ -7,7 +7,8 @@ from database import Session, UserState
 from handlers import (start_bot, show_shops_menu, show_shop_products, show_category_products, 
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
                       remove_cart_item, clear_cart, process_quantity_step, handle_customer_photo,
-                      start_vendor_panel, process_vendor_step, list_vendor_products, list_vendor_products_by_cat, # <-- این اضافه شد
+                      start_vendor_panel, process_vendor_step, list_vendor_products, list_vendor_products_by_cat,
+                      start_search_product, # <-- این اضافه شد
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
                       handle_payment_online, handle_payment_cod,
@@ -146,12 +147,14 @@ def main():
                     prod_id = int(text.replace('editn_', ''))
                     start_edit_name(chat_id, prod_id)
                 
-                # --- بخش‌های جدید اضافه شده ---
+                                # --- بخش‌های جدید اضافه شده ---
                 elif text.startswith('vcat_'):
                     category = text.replace('vcat_', '', 1)
                     list_vendor_products_by_cat(chat_id, category)
                 elif text == 'manage_cats':
                     list_vendor_products(chat_id)
+                elif text == 'search_prod':
+                    start_search_product(chat_id)
                 # --------------------------------
                 
                 elif text == 'cancel_edit':
