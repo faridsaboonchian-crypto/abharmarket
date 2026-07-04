@@ -87,7 +87,7 @@ def main():
 
                 # ۱. دکمه‌های منوی اصلی
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address', 'adding_quantity', 'customer_search_prod']:
+                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address', 'adding_quantity', 'customer_search_prod', 'admin_edit_shop_name']:
                         with Session() as s:
                             state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                             if state_obj:
@@ -99,7 +99,7 @@ def main():
                 elif text in ["🛒 مشاهده محصولات", "مشاهده محصولات"]:
                     show_shops_menu(chat_id)
                 elif text in ["👤 پشتیبانی", "پشتیبانی"]:
-                    bot.send_message(chat_id, "برای پشتیبانی با شماره 09375894000... تماس بگیرید.")
+                    bot.send_message(chat_id, "برای پشتیبانی با شماره 0912... تماس بگیرید.")
                     
                 # ۲. دستورات سراسری
                 elif text.startswith('/start'):
@@ -123,7 +123,7 @@ def main():
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
-                elif text.startswith('csearch_'):  # مسیر جستجوی مشتری
+                elif text.startswith('csearch_'):
                     shop_id = int(text.replace('csearch_', ''))
                     start_customer_search(chat_id, shop_id)
                 elif text.startswith('c_'):
@@ -135,6 +135,9 @@ def main():
                 elif text.startswith('dels_'):
                     shop_id = int(text.replace('dels_', ''))
                     delete_shop(chat_id, shop_id)
+                elif text.startswith('editshop_'):  # مسیر ویرایش نام فروشگاه
+                    shop_id = int(text.replace('editshop_', ''))
+                    start_edit_shop_name(chat_id, shop_id)
                 elif text.startswith('delvp_'):
                     prod_id = int(text.replace('delvp_', ''))
                     delete_vendor_product(chat_id, prod_id)
@@ -177,7 +180,7 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
@@ -186,7 +189,7 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                 elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
-                elif current_state == 'customer_search_prod':  # مدیریت متن جستجوی مشتری
+                elif current_state == 'customer_search_prod':
                     process_customer_search(chat_id, user_id, text)
                 elif photo and current_state == 'main':
                     handle_customer_photo(chat_id, user_id, photo)
