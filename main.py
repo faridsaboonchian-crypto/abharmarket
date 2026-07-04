@@ -86,7 +86,7 @@ def main():
 
                 # ۱. دکمه‌های منوی اصلی
                 if text in ["🛍 سبد خرید", "سبد خرید", "🛍️ سبد خرید"]:
-                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address', 'adding_quantity']:
+                    if current_state not in ['admin_shop_name', 'admin_shop_owner', 'waiting_phone', 'waiting_address', 'adding_quantity', 'customer_search_prod']:
                         with Session() as s:
                             state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
                             if state_obj:
@@ -122,6 +122,9 @@ def main():
                 elif text.startswith('shop_'):
                     shop_id = int(text.replace('shop_', ''))
                     show_shop_products(chat_id, shop_id)
+                elif text.startswith('csearch_'):  # مسیر جستجوی مشتری
+                    shop_id = int(text.replace('csearch_', ''))
+                    start_customer_search(chat_id, shop_id)
                 elif text.startswith('c_'):
                     parts = text.split('_')
                     shop_id = int(parts[1])
@@ -146,8 +149,6 @@ def main():
                 elif text.startswith('editn_'):
                     prod_id = int(text.replace('editn_', ''))
                     start_edit_name(chat_id, prod_id)
-                
-                                # --- بخش‌های جدید اضافه شده ---
                 elif text.startswith('vcat_'):
                     category = text.replace('vcat_', '', 1)
                     list_vendor_products_by_cat(chat_id, category)
@@ -155,8 +156,6 @@ def main():
                     list_vendor_products(chat_id)
                 elif text == 'search_prod':
                     start_search_product(chat_id)
-                # --------------------------------
-                
                 elif text == 'cancel_edit':
                     with Session() as s:
                         state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
@@ -177,7 +176,7 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
                 elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
@@ -186,8 +185,8 @@ def main():
                     process_checkout_step(chat_id, user_id, text)
                 elif current_state == 'adding_quantity':
                     process_quantity_step(chat_id, user_id, text)
-                elif current_state == 'customer_search_prod':  # <--- این خط اضافه شد
-                    process_customer_search(chat_id, user_id, text) # <--- این خط اضافه شد
+                elif current_state == 'customer_search_prod':  # مدیریت متن جستجوی مشتری
+                    process_customer_search(chat_id, user_id, text)
                 elif photo and current_state == 'main':
                     handle_customer_photo(chat_id, user_id, photo)
                     
