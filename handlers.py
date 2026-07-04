@@ -18,12 +18,13 @@ def convert_to_english_digits(text):
         text = text.replace(ch, str(i))
     return text
 
-
-def format_price(price):
-    return f"{int(price):,}"
 def is_button(text):
     buttons = ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
     return text in buttons
+
+def format_price(price):
+    return f"{int(price):,}"
+
 def main_keyboard():
     return {"keyboard": [["🛒 مشاهده محصولات"], ["🛍 سبد خرید", "👤 پشتیبانی"]], "resize_keyboard": True}
 
@@ -31,11 +32,7 @@ def vendor_keyboard():
     return {"keyboard": [["➕ افزودن محصول جدید"], ["📦 مدیریت محصولات"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
 
 def admin_keyboard():
-    return {"keyboard": [
-        ["➕ ثبت فروشگاه جدید", "✏️ ویرایش نام فروشگاه"], 
-        ["🗑 حذف فروشگاه", "📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], 
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
+    return {"keyboard": [["➕ ثبت فروشگاه جدید", "✏️ ویرایش نام فروشگاه"], ["🗑 حذف فروشگاه", "📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], ["🔙 بازگشت"]], "resize_keyboard": True}
 
 def reset_state_to_main(chat_id):
     with Session() as session:
@@ -164,7 +161,6 @@ def process_admin_step(chat_id, text):
         elif text == '🗑 حذف فروشگاه': list_shops_for_delete(chat_id); return
         elif text == '✏️ ویرایش نام فروشگاه': list_shops_for_edit(chat_id); return
 
-        # ---------------- بخش جدید: مدیریت State ویرایش نام فروشگاه ----------------
         if state.state == 'admin_edit_shop_name':
             if is_button(text) or not text or len(text) < 2 or len(text) > 100:
                 bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر تایپ کنید:")
@@ -181,7 +177,6 @@ def process_admin_step(chat_id, text):
             else: bot.send_message(chat_id, "⚠️ فروشگاه یافت نشد.")
             state.state = 'main'; state.temp_data = None; session.commit()
             return
-        # --------------------------------------------------------------------
 
         if text == '➕ ثبت فروشگاه جدید' and state.state == 'main':
             state.state = 'admin_shop_name'; session.commit()
@@ -231,10 +226,8 @@ def show_shop_products(chat_id, shop_id):
             cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
             if cat not in categories: categories.append(cat)
         buttons = []
-        # اضافه شدن دکمه جستجو در بالای لیست برای مشتری
         buttons.append([{"text": "🔍 جستجوی محصول", "callback_data": f"csearch_{shop_id}"}])
         for cat in categories:
-            # استفاده از پیشوند c_ برای صفحه‌بندی و شروع از صفحه 1
             buttons.append([{"text": f"🏷 {cat}", "callback_data": f"c_{shop_id}_{cat}_1"}])
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, f"🏦 فروشگاه '{shop.name}'\nلطفاً دسته‌بندی را انتخاب کنید یا برای پیدا کردن سریع محصول، روی جستجو بزنید:", keyboard)
@@ -252,7 +245,6 @@ def start_customer_search(chat_id, shop_id):
 
 def process_customer_search(chat_id, user_id, text):
     text = convert_to_english_digits(text)
-    # اعتبارسنجی متن جستجو
     if not text or len(text) < 2 or len(text) > 50:
         bot.send_message(chat_id, "⚠️ عبارت جستجو نامعتبر است. لطفاً بین ۲ تا ۵۰ کاراکتر وارد کنید:")
         return
@@ -264,8 +256,6 @@ def process_customer_search(chat_id, user_id, text):
         
         shop_id = int(state.temp_data)
         search_term = f"%{text}%"
-        
-        # محدود کردن به 10 نتیجه اول برای جلوگیری از اسپم و مسدودی ربات
         products = session.query(Product).filter(
             Product.shop_id == shop_id, 
             Product.name.ilike(search_term)
@@ -293,21 +283,12 @@ def process_customer_search(chat_id, user_id, text):
                 bot.send_message(chat_id, prod_text, keyboard)
                 time.sleep(0.2)
         
-        # ---------------- بخش جدید: دکمه بازگشت به لیست محصولات ----------------
-        # استفاده از کال‌بک shop_{shop_id} که قبلا در main.py تعریف شده تا لیست دسته‌بندی‌ها بیاید
-        back_keyboard = {
-            "inline_keyboard": [
-                [{"text": "🔙 بازگشت به لیست محصولات", "callback_data": f"shop_{shop_id}"}]
-            ]
-        }
+        back_keyboard = {"inline_keyboard": [[{"text": "🔙 بازگشت به لیست محصولات", "callback_data": f"shop_{shop_id}"}]]}
         bot.send_message(chat_id, "اگر محصول مورد نظر شما در لیست بالا نبود، می‌توانید به لیست دسته‌بندی‌ها برگردید:", back_keyboard)
-        # --------------------------------------------------------------------
         
-        # ریست کردن State به منوی اصلی
         state.state = 'main'
         state.temp_data = None
         session.commit()
-
 
 def show_category_products(chat_id, shop_id, category, page=1):
     items_per_page = 5
@@ -346,14 +327,10 @@ def show_category_products(chat_id, shop_id, category, page=1):
                 bot.send_message(chat_id, text, keyboard)
                 time.sleep(0.2)
                 
-        # ساخت دکمه‌های صفحه‌بندی و بازگشت به دسته‌بندی‌ها
         pagination_buttons = []
         if page > 1:
             pagination_buttons.append({"text": "⬅️ صفحه قبل", "callback_data": f"c_{shop_id}_{category}_{page-1}"})
-        
-        # دکمه بازگشت به منوی دسته‌بندی‌ها برای جلوگیری از اسکرول
         pagination_buttons.append({"text": "🔙 دسته‌بندی‌ها", "callback_data": f"shop_{shop_id}"})
-        
         if end_idx < total_items:
             pagination_buttons.append({"text": "صفحه بعد ➡️", "callback_data": f"c_{shop_id}_{category}_{page+1}"})
             
@@ -474,7 +451,6 @@ def process_checkout_step(chat_id, user_id, text):
         if not state: return
 
         if state.state == 'waiting_phone':
-            # اعتبارسنجی شماره تلفن (حداکثر 15 کاراکتر و فقط عدد)
             if not text.isdigit() or len(text) > 15 or len(text) < 4:
                 bot.send_message(chat_id, "⚠️ شماره نامعتبر است. لطفاً فقط عدد (بدون فاصله) وارد کنید:")
                 return
@@ -485,7 +461,6 @@ def process_checkout_step(chat_id, user_id, text):
             return
 
         elif state.state == 'waiting_address':
-            # اعتبارسنجی آدرس (حداکثر 300 کاراکتر)
             if len(text) > 300:
                 bot.send_message(chat_id, "⚠️ آدرس شما بسیار طولانی است! لطفاً آدرس را به صورت خلاصه‌تر (کمتر از ۳۰۰ کاراکتر) وارد کنید:")
                 return
@@ -544,165 +519,28 @@ def process_checkout_step(chat_id, user_id, text):
             except: pass
             return
 
-def process_vendor_step(chat_id, text, photo=None):
-    text = convert_to_english_digits(text)
+def handle_customer_photo(chat_id, user_id, photo):
+    print(f"DEBUG: Received photo from customer {user_id}")
     with Session() as session:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state: return
-
-        # ---------------- بخش جدید: مدیریت جستجوی محصول ----------------
-        if state.state == 'vendor_search_prod':
-            if is_button(text) or not text or len(text) < 2 or len(text) > 50:
-                bot.send_message(chat_id, "⚠️ عبارت جستجو نامعتبر است. لطفاً بین ۲ تا ۵۰ کاراکتر وارد کنید:")
-                return
-            
-            shops = session.query(Shop).filter_by(is_active=True).all()
-            shop = None
-            for s in shops:
-                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
-                    shop = s
-                    break
-            if not shop: return
-
-            # جستجوی سیلابیک در دیتابیس (ilike)
-            search_term = f"%{text}%"
-            products = session.query(Product).filter(
-                Product.shop_id == shop.id, 
-                Product.name.ilike(search_term)
-            ).all()
-            
-            if not products:
-                bot.send_message(chat_id, "⚠️ محصولی با این نام یافت نشد. لطفاً کلمه دیگری را امتحان کنید:")
-                return
-                
-            buttons = []
-            for p in products:
-                buttons.append([{"text": f"📦 {p.name} (قیمت: {format_price(p.price)} - موجودی: {p.stock})", "callback_data": f"editvp_{p.id}"}])
-            
-            buttons.append([{"text": "🔙 بازگشت به دسته‌بندی‌ها", "callback_data": "manage_cats"}])
-            keyboard = {"inline_keyboard": buttons}
-            bot.send_message(chat_id, f"✅ {len(products)} محصول یافت شد. لطفاً محصول مورد نظر را برای ویرایش انتخاب کنید:", keyboard)
-            
-            # ریست کردن State به منوی فروشندگی
-            state.state = 'vendor_menu'
-            state.temp_data = None
-            session.commit()
+        order = session.query(Order).filter_by(customer_id=str(user_id)).order_by(Order.id.desc()).first()
+        if not order:
+            bot.send_message(chat_id, "شما سفارش فعالی ندارید. لطفاً ابتدا خرید خود را نهایی کنید.")
             return
-        # ----------------------------------------------------------------
 
-        if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
-            state.state = 'vendor_name'; session.commit()
-            bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:"); return
-
-        if text == '📦 مدیریت محصولات' and state.state == 'vendor_menu':
-            list_vendor_products(chat_id); return
-
-        if state.state == 'vendor_edit_name':
-            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
-                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر وارد کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.name = text; session.commit()
-                bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        if state.state == 'vendor_edit_price':
-            if not text.isdigit() or len(text) > 12:
-                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد و معقول باشد. دوباره وارد کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.price = float(text); session.commit()
-                bot.send_message(chat_id, "✅ قیمت با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        elif state.state == 'vendor_edit_stock':
-            if not text.isdigit() or len(text) > 6:
-                bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:"); return
-            try: prod_id = int(state.temp_data)
-            except (ValueError, TypeError):
-                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
-                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-            p = session.query(Product).get(prod_id)
-            if p:
-                p.stock = int(text); session.commit()
-                bot.send_message(chat_id, "✅ موجودی با موفقیت بروزرسانی شد.", vendor_keyboard())
-            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
-
-        if state.state == 'vendor_name':
-            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
-                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر تایپ کنید:"); return
-            state.temp_data = f"name:{text}"; state.state = 'vendor_price'; session.commit()
-            bot.send_message(chat_id, "۲. **قیمت** را به تومان وارد کنید (فقط عدد):"); return
-
-        elif state.state == 'vendor_price':
-            if not text.isdigit() or len(text) > 12:
-                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد:"); return
-            state.temp_data += f"|price:{text}"; state.state = 'vendor_stock'; session.commit()
-            bot.send_message(chat_id, "۳. **موجودی** را وارد کنید (فقط عدد):"); return
-
-        elif state.state == 'vendor_stock':
-            if not text.isdigit() or len(text) > 6:
-                bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:"); return
-            state.temp_data += f"|stock:{text}"; state.state = 'vendor_cat'; session.commit()
-            bot.send_message(chat_id, "۴. **دسته‌بندی محصول** را وارد کنید (مثلاً: روغن، برنج، شوینده):"); return
-
-        elif state.state == 'vendor_cat':
-            if is_button(text) or text == 'ندارد' or len(text) > 50:
-                bot.send_message(chat_id, "⚠️ دسته‌بندی نامعتبر است. لطفاً کوتاه و معتبر وارد کنید:"); return
-            state.temp_data += f"|cat:{text}"; state.state = 'vendor_desc'; session.commit()
-            bot.send_message(chat_id, "۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
-
-        elif state.state == 'vendor_desc':
-            if len(text) > 500:
-                bot.send_message(chat_id, "⚠️ توضیحات بسیار طولانی است. لطفاً کمتر از ۵۰۰ کاراکتر بنویسید:"); return
-            desc_text = text if text != 'ندارد' else 'empty_desc'
-            state.temp_data += f"|desc:{desc_text}"; state.state = 'vendor_photo'; session.commit()
-            bot.send_message(chat_id, "۶. عکس محصول را ارسال کنید."); return
-
-        elif state.state == 'vendor_photo':
-            if not photo:
-                bot.send_message(chat_id, "⚠️ لطفاً یک عکس ارسال کنید."); return
-            file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
-            data_str = state.temp_data
-            data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
-            
-            shops = session.query(Shop).all()
-            shop = None
-            for s in shops:
-                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
-                    shop = s
-                    break
-
-            final_desc = data_dict.get("desc")
-            if final_desc == 'empty_desc': final_desc = None
-
-            new_product = Product(
-                name=data_dict.get("name"),
-                price=float(data_dict.get("price")),
-                stock=int(data_dict.get("stock")),
-                category=data_dict.get("cat"),
-                description=final_desc,
-                image_file_id=file_id,
-                shop_id=shop.id
-            )
-            session.add(new_product)
-            state.state = 'vendor_menu'; state.temp_data = None; session.commit()
-            bot.send_message(chat_id, f"✅ محصول '{new_product.name}' ثبت شد!", vendor_keyboard())
+        shop = session.query(Shop).get(order.shop_id)
+        if not shop:
+            bot.send_message(chat_id, "فروشگاه مربوط به سفارش شما یافت نشد.")
             return
+
+        file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
+        caption = f"📸 رسید پرداخت جدید\n\nکد سفارش: {order.id}\n📞 شماره مشتری: {order.phone}\n💰 مبلغ: {format_price(order.total_price)} تومان\n\nلطفاً صحت واریز را بررسی کرده و در صورت تایید، سفارش را ارسال نمایید."
+
+        try:
+            bot.send_photo(shop.owner_chat_id, file_id, caption)
+            bot.send_message(chat_id, "✅ رسید شما دریافت شد و برای فروشنده ارسال گردید.\nپس از تایید واریز وجه توسط فروشنده، سفارش شما ارسال خواهد شد. سپس از صبوری شما!")
+        except Exception as e:
+            print(f"Error forwarding photo to vendor: {e}")
+            bot.send_message(chat_id, "⚠️ خطا در ارسال رسید به فروشنده. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.")
 
 def start_vendor_panel(chat_id):
     shop_name = None
@@ -740,33 +578,19 @@ def list_vendor_products(chat_id):
             bot.send_message(chat_id, "شما هنوز محصولی ثبت نکرده‌اید.")
             return
             
-        # استخراج دسته‌بندی‌های یکتا
         categories = []
         for p in products:
             cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
             if cat not in categories: categories.append(cat)
             
         buttons = []
-        # اضافه شدن دکمه جستجو در بالای لیست
         buttons.append([{"text": "🔍 جستجوی محصول", "callback_data": "search_prod"}])
-        
         for cat in categories:
             buttons.append([{"text": f"🏷 {cat}", "callback_data": f"vcat_{cat}"}])
         
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, "لطفاً دسته‌بندی را انتخاب کنید یا برای پیدا کردن سریع محصول، روی جستجو بزنید:", keyboard)
 
-def start_search_product(chat_id):
-    with Session() as session:
-        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
-        if not state:
-            state = UserState(chat_id=str(chat_id))
-            session.add(state)
-        state.state = 'vendor_search_prod'
-        session.commit()
-    bot.send_message(chat_id, "🔍 لطفاً **بخشی از نام محصول** مورد نظر خود را ارسال کنید:\n(مثلاً بنویسید: خوشپخت)")
-
-# تابع جدید برای نمایش محصولات یک دسته خاص جهت ویرایش
 def list_vendor_products_by_cat(chat_id, category):
     with Session() as session:
         shops = session.query(Shop).filter_by(is_active=True).all()
@@ -793,7 +617,6 @@ def list_vendor_products_by_cat(chat_id, category):
         for p in products:
             buttons.append([{"text": f"📦 {p.name} (قیمت: {format_price(p.price)} - موجودی: {p.stock})", "callback_data": f"editvp_{p.id}"}])
         
-        # دکمه بازگشت به دسته‌بندی‌ها
         buttons.append([{"text": "🔙 بازگشت به دسته‌بندی‌ها", "callback_data": "manage_cats"}])
         
         keyboard = {"inline_keyboard": buttons}
@@ -911,29 +734,168 @@ def handle_payment_cod(chat_id, order_id):
             try: bot.send_message(shop.owner_chat_id, vendor_msg)
             except: pass
 
-def handle_customer_photo(chat_id, user_id, photo):
-    print(f"DEBUG: Received photo from customer {user_id}")
+def start_search_product(chat_id):
     with Session() as session:
-        # پیدا کردن آخرین سفارش این مشتری
-        order = session.query(Order).filter_by(customer_id=str(user_id)).order_by(Order.id.desc()).first()
-        if not order:
-            bot.send_message(chat_id, "شما سفارش فعالی ندارید. لطفاً ابتدا خرید خود را نهایی کنید.")
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'vendor_search_prod'
+        session.commit()
+    bot.send_message(chat_id, "🔍 لطفاً **بخشی از نام محصول** مورد نظر خود را ارسال کنید:\n(مثلاً بنویسید: خوشپخت)")
+
+def process_vendor_step(chat_id, text, photo=None):
+    text = convert_to_english_digits(text)
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state: return
+
+        if state.state == 'vendor_search_prod':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 50:
+                bot.send_message(chat_id, "⚠️ عبارت جستجو نامعتبر است. لطفاً بین ۲ تا ۵۰ کاراکتر وارد کنید:")
+                return
+            
+            shops = session.query(Shop).filter_by(is_active=True).all()
+            shop = None
+            for s in shops:
+                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                    shop = s
+                    break
+            if not shop: return
+
+            search_term = f"%{text}%"
+            products = session.query(Product).filter(
+                Product.shop_id == shop.id, 
+                Product.name.ilike(search_term)
+            ).all()
+            
+            if not products:
+                bot.send_message(chat_id, "⚠️ محصولی با این نام یافت نشد. لطفاً کلمه دیگری را امتحان کنید:")
+                return
+                
+            buttons = []
+            for p in products:
+                buttons.append([{"text": f"📦 {p.name} (قیمت: {format_price(p.price)} - موجودی: {p.stock})", "callback_data": f"editvp_{p.id}"}])
+            
+            buttons.append([{"text": "🔙 بازگشت به دسته‌بندی‌ها", "callback_data": "manage_cats"}])
+            keyboard = {"inline_keyboard": buttons}
+            bot.send_message(chat_id, f"✅ {len(products)} محصول یافت شد. لطفاً محصول مورد نظر را برای ویرایش انتخاب کنید:", keyboard)
+            
+            state.state = 'vendor_menu'
+            state.temp_data = None
+            session.commit()
             return
 
-        shop = session.query(Shop).get(order.shop_id)
-        if not shop:
-            bot.send_message(chat_id, "فروشگاه مربوط به سفارش شما یافت نشد.")
+        if text == '➕ افزودن محصول جدید' and state.state == 'vendor_menu':
+            state.state = 'vendor_name'; session.commit()
+            bot.send_message(chat_id, "۱. **نام محصول** را وارد کنید:"); return
+
+        if text == '📦 مدیریت محصولات' and state.state == 'vendor_menu':
+            list_vendor_products(chat_id); return
+
+        if state.state == 'vendor_edit_name':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.name = text; session.commit()
+                bot.send_message(chat_id, "✅ نام محصول با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        if state.state == 'vendor_edit_price':
+            if not text.isdigit() or len(text) > 12:
+                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد و معقول باشد. دوباره وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.price = float(text); session.commit()
+                bot.send_message(chat_id, "✅ قیمت با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        elif state.state == 'vendor_edit_stock':
+            if not text.isdigit() or len(text) > 6:
+                bot.send_message(chat_id, "⚠️ موجودی باید فقط عدد باشد. دوباره وارد کنید:"); return
+            try: prod_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی محصول.", vendor_keyboard())
+                state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+            p = session.query(Product).get(prod_id)
+            if p:
+                p.stock = int(text); session.commit()
+                bot.send_message(chat_id, "✅ موجودی با موفقیت بروزرسانی شد.", vendor_keyboard())
+            else: bot.send_message(chat_id, "⚠️ محصول یافت نشد.")
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit(); return
+
+        if state.state == 'vendor_name':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر تایپ کنید:"); return
+            state.temp_data = f"name:{text}"; state.state = 'vendor_price'; session.commit()
+            bot.send_message(chat_id, "۲. **قیمت** را به تومان وارد کنید (فقط عدد):"); return
+
+        elif state.state == 'vendor_price':
+            if not text.isdigit() or len(text) > 12:
+                bot.send_message(chat_id, "⚠️ قیمت باید فقط عدد باشد:"); return
+            state.temp_data += f"|price:{text}"; state.state = 'vendor_stock'; session.commit()
+            bot.send_message(chat_id, "۳. **موجودی** را وارد کنید (فقط عدد):"); return
+
+        elif state.state == 'vendor_stock':
+            if not text.isdigit() or len(text) > 6:
+                bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:"); return
+            state.temp_data += f"|stock:{text}"; state.state = 'vendor_cat'; session.commit()
+            bot.send_message(chat_id, "۴. **دسته‌بندی محصول** را وارد کنید (مثلاً: روغن، برنج، شوینده):"); return
+
+        elif state.state == 'vendor_cat':
+            if is_button(text) or text == 'ندارد' or len(text) > 50:
+                bot.send_message(chat_id, "⚠️ دسته‌بندی نامعتبر است. لطفاً کوتاه و معتبر وارد کنید:"); return
+            state.temp_data += f"|cat:{text}"; state.state = 'vendor_desc'; session.commit()
+            bot.send_message(chat_id, "۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
+
+        elif state.state == 'vendor_desc':
+            if len(text) > 500:
+                bot.send_message(chat_id, "⚠️ توضیحات بسیار طولانی است. لطفاً کمتر از ۵۰۰ کاراکتر بنویسید:"); return
+            desc_text = text if text != 'ندارد' else 'empty_desc'
+            state.temp_data += f"|desc:{desc_text}"; state.state = 'vendor_photo'; session.commit()
+            bot.send_message(chat_id, "۶. عکس محصول را ارسال کنید."); return
+
+        elif state.state == 'vendor_photo':
+            if not photo:
+                bot.send_message(chat_id, "⚠️ لطفاً یک عکس ارسال کنید."); return
+            file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
+            data_str = state.temp_data
+            data_dict = {p.split(":", 1)[0]: p.split(":", 1)[1] for p in data_str.split("|")}
+            
+            shops = session.query(Shop).all()
+            shop = None
+            for s in shops:
+                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                    shop = s
+                    break
+
+            final_desc = data_dict.get("desc")
+            if final_desc == 'empty_desc': final_desc = None
+
+            new_product = Product(
+                name=data_dict.get("name"),
+                price=float(data_dict.get("price")),
+                stock=int(data_dict.get("stock")),
+                category=data_dict.get("cat"),
+                description=final_desc,
+                image_file_id=file_id,
+                shop_id=shop.id
+            )
+            session.add(new_product)
+            state.state = 'vendor_menu'; state.temp_data = None; session.commit()
+            bot.send_message(chat_id, f"✅ محصول '{new_product.name}' ثبت شد!", vendor_keyboard())
             return
-
-        file_id = photo[-1]['file_id'] if isinstance(photo, list) else photo['file_id']
-        caption = f"📸 رسید پرداخت جدید\n\nکد سفارش: {order.id}\n📞 شماره مشتری: {order.phone}\n💰 مبلغ: {format_price(order.total_price)} تومان\n\nلطفاً صحت واریز را بررسی کرده و در صورت تایید، سفارش را ارسال نمایید."
-
-        try:
-            # فوروارد عکس برای مغازه‌دار
-            bot.send_photo(shop.owner_chat_id, file_id, caption)
-            # پیام تایید به مشتری
-            bot.send_message(chat_id, "✅ رسید شما دریافت شد و برای فروشنده ارسال گردید.\nپس از تایید واریز وجه توسط فروشنده، سفارش شما ارسال خواهد شد. سپاس از صبوری شما!")
-        except Exception as e:
-            print(f"Error forwarding photo to vendor: {e}")
-            bot.send_message(chat_id, "⚠️ خطا در ارسال رسید به فروشنده. لطفاً کمی بعد دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.")
-
