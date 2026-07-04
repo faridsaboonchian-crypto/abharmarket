@@ -8,7 +8,8 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       show_cart, add_to_cart, start_checkout, process_checkout_step, 
                       remove_cart_item, clear_cart, process_quantity_step, handle_customer_photo,
                       start_vendor_panel, process_vendor_step, list_vendor_products, list_vendor_products_by_cat,
-                      start_search_product, start_customer_search, process_customer_search, # <-- این دو اضافه شد
+                      start_search_product, start_customer_search, process_customer_search, 
+                      list_shops_for_edit, start_edit_shop_name, # <-- این دو اضافه شد
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
                       handle_payment_online, handle_payment_cod,
@@ -176,8 +177,8 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
-                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
+                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
                     process_vendor_step(chat_id, text, photo)

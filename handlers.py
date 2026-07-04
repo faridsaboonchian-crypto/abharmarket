@@ -18,9 +18,7 @@ def convert_to_english_digits(text):
         text = text.replace(ch, str(i))
     return text
 
-def is_button(text):
-    buttons = ['➕ ثبت فروشگاه جدید', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
-    return text in buttons
+is_button
 
 def format_price(price):
     return f"{int(price):,}"
@@ -32,7 +30,11 @@ def vendor_keyboard():
     return {"keyboard": [["➕ افزودن محصول جدید"], ["📦 مدیریت محصولات"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
 
 def admin_keyboard():
-    return {"keyboard": [["➕ ثبت فروشگاه جدید", "🗑 حذف فروشگاه"], ["📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], ["🔙 بازگشت"]], "resize_keyboard": True}
+    return {"keyboard": [
+        ["➕ ثبت فروشگاه جدید", "✏️ ویرایش نام فروشگاه"], 
+        ["🗑 حذف فروشگاه", "📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], 
+        ["🔙 بازگشت"]
+    ], "resize_keyboard": True}
 
 def reset_state_to_main(chat_id):
     with Session() as session:
@@ -109,6 +111,33 @@ def list_shops_for_delete(chat_id):
         keyboard = {"inline_keyboard": buttons}
         bot.send_message(chat_id, "لطفاً فروشگاهی که می‌خواهید حذف کنید را انتخاب کنید:", keyboard)
 
+def list_shops_for_edit(chat_id):
+    if str(chat_id) != ADMIN_ID: return
+    with Session() as session:
+        shops = session.query(Shop).all()
+        if not shops:
+            bot.send_message(chat_id, "هیچ فروشگاهی برای ویرایش وجود ندارد.")
+            return
+        buttons = []
+        for s in shops:
+            buttons.append([{"text": f"✏️ {s.name}", "callback_data": f"editshop_{s.id}"}])
+        keyboard = {"inline_keyboard": buttons}
+        bot.send_message(chat_id, "لطفاً فروشگاهی که می‌خواهید نام آن را ویرایش کنید انتخاب کنید:", keyboard)
+
+def start_edit_shop_name(chat_id, shop_id):
+    if str(chat_id) != ADMIN_ID: return
+    with Session() as session:
+        shop = session.query(Shop).get(shop_id)
+        if not shop: return
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'admin_edit_shop_name'
+        state.temp_data = str(shop_id)
+        session.commit()
+    bot.send_message(chat_id, f"نام فعلی: {shop.name}\n\nلطفاً **نام جدید** فروشگاه را ارسال کنید:")
+
 def delete_shop(chat_id, shop_id):
     if str(chat_id) != ADMIN_ID: return
     with Session() as session:
@@ -132,34 +161,44 @@ def process_admin_step(chat_id, text):
         if text == '/admin' or text == '📊 آمار سیستم': show_admin_panel(chat_id); return
         elif text == '🏪 لیست فروشگاه‌ها': list_shops(chat_id); return
         elif text == '🗑 حذف فروشگاه': list_shops_for_delete(chat_id); return
+        elif text == '✏️ ویرایش نام فروشگاه': list_shops_for_edit(chat_id); return
+
+        # ---------------- بخش جدید: مدیریت State ویرایش نام فروشگاه ----------------
+        if state.state == 'admin_edit_shop_name':
+            if is_button(text) or not text or len(text) < 2 or len(text) > 100:
+                bot.send_message(chat_id, "⚠️ نام نامعتبر است. لطفاً بین ۲ تا ۱۰۰ کاراکتر تایپ کنید:")
+                return
+            try: shop_id = int(state.temp_data)
+            except (ValueError, TypeError):
+                bot.send_message(chat_id, "⚠️ خطا در شناسایی فروشگاه.", admin_keyboard())
+                state.state = 'main'; state.temp_data = None; session.commit(); return
+
+            shop = session.query(Shop).get(shop_id)
+            if shop:
+                shop.name = text; session.commit()
+                bot.send_message(chat_id, f"✅ نام فروشگاه با موفقیت به '{shop.name}' تغییر یافت.", admin_keyboard())
+            else: bot.send_message(chat_id, "⚠️ فروشگاه یافت نشد.")
+            state.state = 'main'; state.temp_data = None; session.commit()
+            return
+        # --------------------------------------------------------------------
 
         if text == '➕ ثبت فروشگاه جدید' and state.state == 'main':
-            state.state = 'admin_shop_name'
-            session.commit()
-            bot.send_message(chat_id, "۱. لطفاً **نام فروشگاه** را وارد کنید:")
-            return
+            state.state = 'admin_shop_name'; session.commit()
+            bot.send_message(chat_id, "۱. لطفاً **نام فروشگاه** را وارد کنید:"); return
 
         if state.state == 'admin_shop_name':
             if is_button(text):
-                bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر تایپ کنید، نه دکمه را:")
-                return
-            state.temp_data = f"name:{text}"
-            state.state = 'admin_shop_owner'
-            session.commit()
-            bot.send_message(chat_id, "۲. لطفاً **آیدی عددی مغازه‌دار** در بله را وارد کنید:")
-            return
+                bot.send_message(chat_id, "⚠️ لطفاً یک نام معتبر تایپ کنید، نه دکمه را:"); return
+            state.temp_data = f"name:{text}"; state.state = 'admin_shop_owner'; session.commit()
+            bot.send_message(chat_id, "۲. لطفاً **آیدی عددی مغازه‌دار** در بله را وارد کنید:"); return
 
         if state.state == 'admin_shop_owner':
             if is_button(text):
-                bot.send_message(chat_id, "⚠️ لطفاً آیدی عددی معتبر وارد کنید:")
-                return
+                bot.send_message(chat_id, "⚠️ لطفاً آیدی عددی معتبر وارد کنید:"); return
             try:
                 shop_name = state.temp_data.split(":", 1)[1]
                 new_shop = Shop(name=shop_name, owner_chat_id=text, is_active=True)
-                session.add(new_shop)
-                state.state = 'main'
-                state.temp_data = None
-                session.commit()
+                session.add(new_shop); state.state = 'main'; state.temp_data = None; session.commit()
                 bot.send_message(chat_id, f"✅ فروشگاه '{new_shop.name}' ثبت شد!", admin_keyboard())
             except IntegrityError:
                 session.rollback()
