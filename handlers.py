@@ -811,6 +811,24 @@ def start_search_product(chat_id):
         session.commit()
     bot.send_message(chat_id, "🔍 لطفاً **بخشی از نام محصول** مورد نظر خود را ارسال کنید:\n(مثلاً بنویسید: خوشپخت)")
 
+def process_select_cat(chat_id, category):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state or state.state != 'vendor_cat_select': return
+        state.temp_data += f"|cat:{category}"
+        state.state = 'vendor_desc'
+        session.commit()
+    bot.send_message(chat_id, "✅ دسته‌بندی انتخاب شد.\n۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):")
+
+def process_new_cat_request(chat_id):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state or state.state != 'vendor_cat_select': return
+        state.state = 'vendor_cat_new'
+        session.commit()
+    bot.send_message(chat_id, "لطفاً نام **دسته‌بندی جدید** را تایپ کنید:")
+
+
 def process_vendor_step(chat_id, text, photo=None):
     text = convert_to_english_digits(text)
     with Session() as session:
@@ -920,14 +938,40 @@ def process_vendor_step(chat_id, text, photo=None):
         elif state.state == 'vendor_stock':
             if not text.isdigit() or len(text) > 6:
                 bot.send_message(chat_id, "⚠️ موجودی باید عدد باشد:"); return
-            state.temp_data += f"|stock:{text}"; state.state = 'vendor_cat'; session.commit()
-            bot.send_message(chat_id, "۴. **دسته‌بندی محصول** را وارد کنید (مثلاً: روغن، برنج، شوینده):"); return
+            state.temp_data += f"|stock:{text}"
+            state.state = 'vendor_cat_select'
+            session.commit()
+            
+            # ---------------- بخش جدید: نمایش دسته‌بندی‌های قبلی به صورت دکمه ----------------
+            shops = session.query(Shop).filter_by(is_active=True).all()
+            shop = None
+            for s in shops:
+                if convert_to_english_digits(s.owner_chat_id) == str(chat_id):
+                    shop = s
+                    break
+            if not shop: return
+            
+            products = session.query(Product).filter_by(shop_id=shop.id).all()
+            categories = []
+            for p in products:
+                cat = p.category if p.category and p.category not in ['None', 'empty_desc', 'سایر'] else "سایر"
+                if cat not in categories: categories.append(cat)
+                
+            buttons = []
+            for cat in categories:
+                buttons.append([{"text": f"🏷 {cat}", "callback_data": f"selcat_{cat}"}])
+            buttons.append([{"text": "➕ دسته‌بندی جدید", "callback_data": "newcat_"}])
+            
+            keyboard = {"inline_keyboard": buttons}
+            bot.send_message(chat_id, "۴. لطفاً **دسته‌بندی محصول** را انتخاب کنید:", keyboard)
+            return
+            # ----------------------------------------------------------------------------------------
 
-        elif state.state == 'vendor_cat':
+        elif state.state == 'vendor_cat_new':
             if is_button(text) or text == 'ندارد' or len(text) > 50:
                 bot.send_message(chat_id, "⚠️ دسته‌بندی نامعتبر است. لطفاً کوتاه و معتبر وارد کنید:"); return
             state.temp_data += f"|cat:{text}"; state.state = 'vendor_desc'; session.commit()
-            bot.send_message(chat_id, "۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
+            bot.send_message(chat_id, "✅ دسته‌بندی جدید ثبت شد.\n۵. **توضیحات** را وارد کنید (اگر ندارد بنویسید 'ندارد'):"); return
 
         elif state.state == 'vendor_desc':
             if len(text) > 500:

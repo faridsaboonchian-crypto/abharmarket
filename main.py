@@ -9,6 +9,7 @@ from handlers import (start_bot, show_shops_menu, show_shop_products, show_categ
                       remove_cart_item, clear_cart, process_quantity_step, handle_customer_photo,
                       start_vendor_panel, process_vendor_step, list_vendor_products, list_vendor_products_by_cat,
                       start_search_product, start_customer_search, process_customer_search, 
+                      process_select_cat, process_new_cat_request, # <-- این دو اضافه شد
                       list_shops_for_edit, start_edit_shop_name, 
                       delete_vendor_product, show_edit_product_menu, start_edit_price, 
                       start_edit_stock, start_edit_name, accept_order, 
@@ -157,6 +158,12 @@ def main():
                     list_vendor_products(chat_id)
                 elif text == 'search_prod':
                     start_search_product(chat_id)
+                # --- بخش‌های جدید اضافه شده ---
+                elif text.startswith('selcat_'):
+                    category = text.replace('selcat_', '', 1)
+                    process_select_cat(chat_id, category)
+                elif text == 'newcat_':
+                    process_new_cat_request(chat_id)
                 elif text == 'cancel_edit':
                     with Session() as s:
                         state_obj = s.query(UserState).filter_by(chat_id=str(chat_id)).first()
