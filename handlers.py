@@ -311,6 +311,9 @@ def show_banner_if_exists(chat_id):
                 bot.send_message(chat_id, banner)
 
 def show_shops_menu(chat_id):
+    # نمایش بنر تبلیغاتی (اگر تنظیم شده باشد)
+    show_banner_if_exists(chat_id)
+    
     with Session() as session:
         shops = session.query(Shop).filter_by(is_active=True).all()
         if not shops:
