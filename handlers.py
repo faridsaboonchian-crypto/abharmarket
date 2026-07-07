@@ -4,6 +4,8 @@ from bot_api import BotAPI
 from config import BOT_TOKEN
 from sqlalchemy.exc import IntegrityError
 import time
+import threading  # <-- این خط باید حتماً باشد
+import os
 
 bot = BotAPI(BOT_TOKEN)
 ADMIN_ID = "1563770441"
@@ -18,9 +20,7 @@ def convert_to_english_digits(text):
         text = text.replace(ch, str(i))
     return text
 
-def is_button(text):
-    buttons = ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
-    return text in buttons
+
 
 def format_price(price):
     return f"{int(price):,}"
@@ -31,8 +31,17 @@ def main_keyboard():
 def vendor_keyboard():
     return {"keyboard": [["➕ افزودن محصول جدید"], ["📦 مدیریت محصولات"], ["🔙 بازگشت به منوی مشتری"]], "resize_keyboard": True}
 
+def is_button(text):
+    buttons = ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🖼 تنظیم بنر تبلیغاتی', '📢 ارسال پیام همگانی', '🔙 بازگشت', '➕ افزودن محصول جدید', '📦 مدیریت محصولات', '🔍 جستجوی محصول', '🔙 بازگشت به منوی مشتری', '🛒 مشاهده محصولات', '🛍 سبد خرید', '👤 پشتیبانی']
+    return text in buttons
+
 def admin_keyboard():
-    return {"keyboard": [["➕ ثبت فروشگاه جدید", "✏️ ویرایش نام فروشگاه"], ["🗑 حذف فروشگاه", "📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], ["🔙 بازگشت"]], "resize_keyboard": True}
+    return {"keyboard": [
+        ["➕ ثبت فروشگاه جدید", "✏️ ویرایش نام فروشگاه"], 
+        ["🗑 حذف فروشگاه", "📊 آمار سیستم", "🏪 لیست فروشگاه‌ها"], 
+        ["🖼 تنظیم بنر تبلیغاتی", "📢 ارسال پیام همگانی"],
+        ["🔙 بازگشت"]
+    ], "resize_keyboard": True}
 
 def reset_state_to_main(chat_id):
     with Session() as session:
@@ -186,6 +195,7 @@ def process_admin_step(chat_id, text):
                 return
             bot.send_message(chat_id, "⏳ شروع ارسال پیام همگانی در پس‌زمینه...")
             state.state = 'main'; session.commit()
+            # استفاده از تردینگ تا ربات هنگ نکند
             thread = threading.Thread(target=broadcast_worker, args=(text,))
             thread.start()
             return
@@ -254,6 +264,51 @@ def process_admin_step(chat_id, text):
             except Exception as e:
                 print(f"Error creating shop: {e}")
             return
+
+# ---------------- توابع جدید تبلیغات و پیام همگانی ----------------
+def start_set_banner(chat_id):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'admin_set_banner'
+        session.commit()
+    current_banner = "بدون بنر"
+    if os.path.exists('banner.txt'):
+        with open('banner.txt', 'r', encoding='utf-8') as f:
+            current_banner = f.read()
+    bot.send_message(chat_id, f"📝 بنر فعلی:\n{current_banner}\n\nلطفاً متن بنر جدید را ارسال کنید.\n(اگر می‌خواهید بنر حذف شود، فقط بنویسید 'حذف'):")
+
+def start_broadcast(chat_id):
+    with Session() as session:
+        state = session.query(UserState).filter_by(chat_id=str(chat_id)).first()
+        if not state:
+            state = UserState(chat_id=str(chat_id))
+            session.add(state)
+        state.state = 'admin_broadcast_msg'
+        session.commit()
+    bot.send_message(chat_id, "📢 لطفاً متن پیام همگانی (تبلیغاتی) را ارسال کنید:")
+
+def broadcast_worker(text):
+    # این تابع در پس‌زمینه اجرا می‌شود
+    with Session() as session:
+        users = session.query(UserState).all()
+        count = 0
+        for user in users:
+            try:
+                bot.send_message(user.chat_id, text)
+                count += 1
+                time.sleep(0.1) # تاخیر ۰.۱ ثانیه‌ای برای جلوگیری از مسدود شدن ربات توسط بله
+            except: pass
+    bot.send_message(ADMIN_ID, f"✅ ارسال پیام همگانی پایان یافت.\nتعداد ارسال موفق: {count} کاربر.")
+
+def show_banner_if_exists(chat_id):
+    if os.path.exists('banner.txt'):
+        with open('banner.txt', 'r', encoding='utf-8') as f:
+            banner = f.read()
+            if banner.strip():
+                bot.send_message(chat_id, banner)
 
 def show_shops_menu(chat_id):
     with Session() as session:
