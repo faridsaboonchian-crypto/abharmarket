@@ -183,7 +183,8 @@ def main():
                 elif text == 'checkout':
                     start_checkout(chat_id, user_id)
                     
-                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '/admin']):
+                                # ۴. مدیریت پنل‌ها و وضعیت‌ها (States)
+                elif current_state.startswith('admin') or (current_state == 'main' and text in ['➕ ثبت فروشگاه جدید', '✏️ ویرایش نام فروشگاه', '📊 آمار سیستم', '🏪 لیست فروشگاه‌ها', '🗑 حذف فروشگاه', '🖼 تنظیم بنر تبلیغاتی', '📢 ارسال پیام همگانی', '/admin']):
                     process_admin_step(chat_id, text)
                 elif current_state.startswith('vendor'):
                     process_vendor_step(chat_id, text, photo)
